@@ -15,8 +15,8 @@ A pure python via stiching.
 After select "Via Stiching" in Tools menu, choose your options in the
 interface.
 
-[The interface](images/via1.png)
+![The interface](images/via1.png)
 
 Then the result should be:
 
-[The result](images/via2.png)
+![The result](images/via2.png)
