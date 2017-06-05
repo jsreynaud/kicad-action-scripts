@@ -8,11 +8,11 @@ is enabled in daily builds of KiCad.
 See https://forum.kicad.info/t/howto-register-a-python-plugin-inside-pcbnew-tools-menu/5540
 
 
-## ViaStiching
+## ViaStitching
 
-A pure python via stiching.
+A pure python via stitching.
 
-After select "Via Stiching" in Tools menu, choose your options in the
+After select "Via Stitching" in Tools menu, choose your options in the
 interface.
 
 ![The interface](images/via1.png)

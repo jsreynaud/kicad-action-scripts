@@ -25,7 +25,7 @@ import FillAreaDialog
 
 class FillAreaAction(pcbnew.ActionPlugin):
     def defaults(self):
-        self.name = "Via stiching WX"
+        self.name = "Via stitching WX"
         self.category = "Undefined"
         self.description = ""
 
