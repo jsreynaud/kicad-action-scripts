@@ -216,11 +216,12 @@ class FillArea:
 
         if self.delete_vias:
             for module in self.pcb.GetModules():
-                print("* Deleting module: %s" % module.GetValue())
+                if self.debug:
+                    print("* Deleting module: %s" % module.GetValue())
                 if module.GetValue() == "AUTO_VIA":
                     self.pcb.DeleteNative(module)
             self.RefillBoardAreas()
-            return
+            return  # no need to run the rest of logic
 
         lboard = self.pcb.ComputeBoundingBox()
         rectangle = []
