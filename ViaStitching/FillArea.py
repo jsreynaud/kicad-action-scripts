@@ -379,6 +379,13 @@ class FillArea:
                     self.AddModule(module,wxPoint(origin.x + (self.step * x) + ran_x,
                                     origin.y + (self.step * y) + ran_y),x,y)
 
+        for i in range(self.pcb.GetAreaCount()):
+            area = self.pcb.GetArea(i)
+            area.ClearFilledPolysList()
+            area.UnFill()
+            if not area.GetIsKeepout():
+                area.BuildFilledSolidAreasPolygons(self.pcb)
+
         if self.filename:
             self.pcb.Save(self.filename)
         self.CleanupFootprint()
