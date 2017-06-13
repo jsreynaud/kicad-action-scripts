@@ -219,7 +219,7 @@ class FillArea:
                 if self.debug:
                     print("* Deleting module: %s" % module.GetValue())
                 if module.GetValue() == "AUTO_VIA":
-                    self.pcb.DeleteNative(module)
+                    self.pcb.RemoveNative(module)
             self.RefillBoardAreas()
             return  # no need to run the rest of logic
 
