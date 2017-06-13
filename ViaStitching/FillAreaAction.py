@@ -24,6 +24,7 @@ import FillAreaDialog
 
 
 class FillAreaAction(pcbnew.ActionPlugin):
+
     def defaults(self):
         self.name = "Via stitching WX"
         self.category = "Undefined"
@@ -52,9 +53,11 @@ class FillAreaAction(pcbnew.ActionPlugin):
                     fill.SetRandom()
                 if a.m_only_selected.IsChecked():
                     fill.OnlyOnSelectedArea()
+                if a.m_delete_vias.IsChecked():
+                    fill.DeleteVias()
                 fill.Run()
             except Exception:
-                wx.MessageDialog(None,"Invalid parameter")
+                wx.MessageDialog(None, "Invalid parameter")
         else:
             print "Cancel"
         a.Destroy()

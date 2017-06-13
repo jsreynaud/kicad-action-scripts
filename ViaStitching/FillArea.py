@@ -83,6 +83,7 @@ class FillArea:
         # ie: radius from the border of the via
         self.SetClearanceMM(0.2)
         self.only_selected_area = False
+        self.delete_vias = False
         if self.pcb is not None:
             for lnet in ["GND", "/GND"]:
                 if self.pcb.FindNet(lnet) is not None:
@@ -136,6 +137,10 @@ class FillArea:
         self.only_selected_area = True
         return self
 
+    def DeleteVias(self):
+        self.delete_vias = True
+        return self
+
     def SetClearanceMM(self, s):
         self.clearance = float(FromMM(s))
         return self
@@ -186,20 +191,38 @@ class FillArea:
         if self.tmp_dir and os.path.isdir(self.tmp_dir):
             shutil.rmtree(self.tmp_dir)
 
-    def AddModule(self,module,position,x,y):
+    def AddModule(self, module, position, x, y):
         m = MODULE(module)
         m.SetPosition(position)
         m.SetReference("V%s_%s" % (x, y))
         m.SetValue("AUTO_VIA")
         m.SetLastEditTime()
         m.thisown = 0
-        self.pcb.AddNative(m,ADD_APPEND)
+        self.pcb.AddNative(m, ADD_APPEND)
         m.SetFlag(IS_NEW)
+
+    def RefillBoardAreas(self):
+        for i in range(self.pcb.GetAreaCount()):
+            area = self.pcb.GetArea(i)
+            area.ClearFilledPolysList()
+            area.UnFill()
+            if not area.GetIsKeepout():
+                area.BuildFilledSolidAreasPolygons(self.pcb)
 
     def Run(self):
         """
         Launch the process
         """
+
+        if self.delete_vias:
+            for module in self.pcb.GetModules():
+                if self.debug:
+                    print("* Deleting module: %s" % module.GetValue())
+                if module.GetValue() == "AUTO_VIA":
+                    self.pcb.DeleteNative(module)
+            self.RefillBoardAreas()
+            return  # no need to run the rest of logic
+
         lboard = self.pcb.ComputeBoundingBox()
         rectangle = []
         origin = lboard.GetPosition()
@@ -239,7 +262,7 @@ class FillArea:
                     for y in range(rectangle[0].__len__()):
                         for x in range(rectangle.__len__()):
                             testResult = not keepOutMode  # = False if is Keepout
-                            offset = self.clearance + self.size/2
+                            offset = self.clearance + self.size / 2
                             #offset = int(self.inter / 2)
                             # For keepout area: Deny Via
                             # For same net area: Allow if not denied by keepout
@@ -248,7 +271,7 @@ class FillArea:
                             for dx in [-offset, offset]:
                                 for dy in [-offset, offset]:
                                     r = area.HitTestFilledArea(wxPoint(current_x + dx,
-                                                                           current_y + dy))
+                                                                       current_y + dy))
                                     if keepOutMode:
                                         testResult |= r
                                     else:
@@ -273,17 +296,18 @@ class FillArea:
 
         # Same job with all pads
         for pad in self.pcb.GetPads():
-            local_offset = max(pad.GetClearance(),self.clearance) + self.size/2
-            max_size = max(pad.GetSize().x,pad.GetSize().y)
+            local_offset = max(pad.GetClearance(),
+                               self.clearance) + self.size / 2
+            max_size = max(pad.GetSize().x, pad.GetSize().y)
             start_x = int(floor(((pad.GetPosition().x - (max_size / 2.0 +
-                                local_offset)) - origin.x) / self.step))
+                                                         local_offset)) - origin.x) / self.step))
             stop_x = int(ceil(((pad.GetPosition().x + (max_size / 2.0 +
-                              local_offset)) - origin.x) / self.step))
+                                                       local_offset)) - origin.x) / self.step))
 
             start_y = int(floor(((pad.GetPosition().y - (max_size / 2.0 +
-                                local_offset)) - origin.y) / self.step))
+                                                         local_offset)) - origin.y) / self.step))
             stop_y = int(ceil(((pad.GetPosition().y + (max_size / 2.0 +
-                              local_offset)) - origin.y) / self.step))
+                                                       local_offset)) - origin.y) / self.step))
 
             for x in range(start_x, stop_x + 1):
                 for y in range(start_y, stop_y + 1):
@@ -318,14 +342,15 @@ class FillArea:
             opx = stop_x
             opy = stop_y
 
-            clearance = max(track.GetClearance(),self.clearance) + self.size/2 + track.GetWidth()/2
+            clearance = max(track.GetClearance(), self.clearance) + \
+                self.size / 2 + track.GetWidth() / 2
 
             start_x = int(floor(((start_x - clearance) -
-                                origin.x) / self.step))
+                                 origin.x) / self.step))
             stop_x = int(ceil(((stop_x + clearance) - origin.x) / self.step))
 
             start_y = int(floor(((start_y - clearance) -
-                                origin.y) / self.step))
+                                 origin.y) / self.step))
             stop_y = int(ceil(((stop_y + clearance) - origin.y) / self.step))
 
             for x in range(start_x, stop_x + 1):
@@ -345,20 +370,20 @@ class FillArea:
         # Same job with existing text
         for draw in self.pcb.m_Drawings:
             if (draw.GetClass() == 'PTEXT' and
-               self.pcb.GetLayerID(draw.GetLayerName()) in (F_Cu, B_Cu)):
+                    self.pcb.GetLayerID(draw.GetLayerName()) in (F_Cu, B_Cu)):
                 inter = float(self.clearance + self.size)
                 bbox = draw.GetBoundingBox()
                 start_x = int(floor(((bbox.GetPosition().x - inter) -
-                                    origin.x) / self.step))
+                                     origin.x) / self.step))
                 stop_x = int(ceil(((bbox.GetPosition().x +
-                                  (bbox.GetSize().x + inter)) -
-                                  origin.x) / self.step))
+                                    (bbox.GetSize().x + inter)) -
+                                   origin.x) / self.step))
 
                 start_y = int(floor(((bbox.GetPosition().y - inter) -
-                                    origin.y) / self.step))
+                                     origin.y) / self.step))
                 stop_y = int(ceil(((bbox.GetPosition().y +
-                                  (bbox.GetSize().y + inter)) -
-                                  origin.y) / self.step))
+                                    (bbox.GetSize().y + inter)) -
+                                   origin.y) / self.step))
 
                 for x in range(start_x, stop_x + 1):
                     for y in range(start_y, stop_y + 1):
@@ -374,17 +399,14 @@ class FillArea:
                     ran_x = 0
                     ran_y = 0
                     if self.random:
-                        ran_x = (random.random() * self.step / 2.0) - (self.step / 4.0)
-                        ran_y = (random.random() * self.step / 2.0) - (self.step / 4.0)
-                    self.AddModule(module,wxPoint(origin.x + (self.step * x) + ran_x,
-                                    origin.y + (self.step * y) + ran_y),x,y)
+                        ran_x = (random.random() * self.step / 2.0) - \
+                            (self.step / 4.0)
+                        ran_y = (random.random() * self.step / 2.0) - \
+                            (self.step / 4.0)
+                    self.AddModule(module, wxPoint(origin.x + (self.step * x) + ran_x,
+                                                   origin.y + (self.step * y) + ran_y), x, y)
 
-        for i in range(self.pcb.GetAreaCount()):
-            area = self.pcb.GetArea(i)
-            area.ClearFilledPolysList()
-            area.UnFill()
-            if not area.GetIsKeepout():
-                area.BuildFilledSolidAreasPolygons(self.pcb)
+        self.RefillBoardAreas()
 
         if self.filename:
             self.pcb.Save(self.filename)

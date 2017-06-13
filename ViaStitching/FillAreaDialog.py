@@ -17,7 +17,7 @@ import wx.xrc
 class FillAreaDialog ( wx.Dialog ):
 	
 	def __init__( self, parent ):
-		wx.Dialog.__init__ ( self, parent, id = wx.ID_ANY, title = u"Fill Area parameters", pos = wx.DefaultPosition, size = wx.Size( 369,356 ), style = wx.DEFAULT_DIALOG_STYLE )
+		wx.Dialog.__init__ ( self, parent, id = wx.ID_ANY, title = u"Fill Area parameters", pos = wx.DefaultPosition, size = wx.Size( 369,389 ), style = wx.DEFAULT_DIALOG_STYLE )
 		
 		self.SetSizeHintsSz( wx.DefaultSize, wx.DefaultSize )
 		
@@ -82,6 +82,13 @@ class FillAreaDialog ( wx.Dialog ):
 		
 		self.m_only_selected = wx.CheckBox( self, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0 )
 		fgSizer1.Add( self.m_only_selected, 0, wx.ALL, 5 )
+		
+		self.m_staticText10 = wx.StaticText( self, wx.ID_ANY, u"Delete generated vias", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.m_staticText10.Wrap( -1 )
+		fgSizer1.Add( self.m_staticText10, 0, wx.ALL, 5 )
+		
+		self.m_delete_vias = wx.CheckBox( self, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0 )
+		fgSizer1.Add( self.m_delete_vias, 0, wx.ALL, 5 )
 		
 		self.m_staticText71 = wx.StaticText( self, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0 )
 		self.m_staticText71.Wrap( -1 )
