@@ -22,6 +22,12 @@ import FillArea
 import wx
 import FillAreaDialog
 
+class FillAreaDialogEx(FillAreaDialog.FillAreaDialog):
+
+    def onDeleteClick( self, event ):
+        return self.EndModal(wx.ID_DELETE)
+
+
 
 class FillAreaAction(pcbnew.ActionPlugin):
 
@@ -31,14 +37,14 @@ class FillAreaAction(pcbnew.ActionPlugin):
         self.description = ""
 
     def Run(self):
-        a = FillAreaDialog.FillAreaDialog(None)
+        a = FillAreaDialogEx(None)
         a.m_SizeMM.SetValue("0.35")
         a.m_StepMM.SetValue("2.54")
         a.m_DrillMM.SetValue("0.3")
         a.m_Netname.SetValue("auto")
         a.m_ClearanceMM.SetValue("0.2")
-
-        if a.ShowModal() == wx.ID_OK:
+        modal_result = a.ShowModal()
+        if modal_result == wx.ID_OK:
             fill = FillArea.FillArea()
             try:
                 fill.SetStepMM(float(a.m_StepMM.GetValue()))
@@ -53,11 +59,18 @@ class FillAreaAction(pcbnew.ActionPlugin):
                     fill.SetRandom()
                 if a.m_only_selected.IsChecked():
                     fill.OnlyOnSelectedArea()
-                if a.m_delete_vias.IsChecked():
-                    fill.DeleteVias()
                 fill.Run()
             except Exception:
                 wx.MessageDialog(None, "Invalid parameter")
+        if modal_result == wx.ID_DELETE:
+            try:
+                fill = FillArea.FillArea()
+                if a.m_Debug.IsChecked():
+                    fill.SetDebug()
+                fill.DeleteVias()
+                fill.Run()
+            except Exception:
+                wx.MessageDialog(None, "Invalid parameter for delete")
         else:
             print "Cancel"
         a.Destroy()

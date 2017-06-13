@@ -21,6 +21,8 @@ class FillAreaDialog ( wx.Dialog ):
 		
 		self.SetSizeHintsSz( wx.DefaultSize, wx.DefaultSize )
 		
+		bSizer3 = wx.BoxSizer( wx.VERTICAL )
+		
 		fgSizer1 = wx.FlexGridSizer( 0, 2, 0, 0 )
 		fgSizer1.SetFlexibleDirection( wx.BOTH )
 		fgSizer1.SetNonFlexibleGrowMode( wx.FLEX_GROWMODE_SPECIFIED )
@@ -83,18 +85,14 @@ class FillAreaDialog ( wx.Dialog ):
 		self.m_only_selected = wx.CheckBox( self, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0 )
 		fgSizer1.Add( self.m_only_selected, 0, wx.ALL, 5 )
 		
-		self.m_staticText10 = wx.StaticText( self, wx.ID_ANY, u"Delete generated vias", wx.DefaultPosition, wx.DefaultSize, 0 )
-		self.m_staticText10.Wrap( -1 )
-		fgSizer1.Add( self.m_staticText10, 0, wx.ALL, 5 )
 		
-		self.m_delete_vias = wx.CheckBox( self, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0 )
-		fgSizer1.Add( self.m_delete_vias, 0, wx.ALL, 5 )
-		
-		self.m_staticText71 = wx.StaticText( self, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0 )
-		self.m_staticText71.Wrap( -1 )
-		fgSizer1.Add( self.m_staticText71, 0, wx.ALL, 5 )
+		bSizer3.Add( fgSizer1, 1, wx.EXPAND, 5 )
 		
 		bSizer1 = wx.BoxSizer( wx.HORIZONTAL )
+		
+		self.m_staticText101 = wx.StaticText( self, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.m_staticText101.Wrap( -1 )
+		bSizer1.Add( self.m_staticText101, 1, wx.ALL, 5 )
 		
 		self.m_button1 = wx.Button( self, wx.ID_OK, u"Run", wx.DefaultPosition, wx.DefaultSize, 0 )
 		self.m_button1.SetDefault() 
@@ -103,16 +101,27 @@ class FillAreaDialog ( wx.Dialog ):
 		self.m_button2 = wx.Button( self, wx.ID_CANCEL, u"Cancel", wx.DefaultPosition, wx.DefaultSize, 0 )
 		bSizer1.Add( self.m_button2, 0, wx.ALL, 5 )
 		
+		self.m_button3_delete = wx.Button( self, wx.ID_DELETE, u"Delete Vias", wx.DefaultPosition, wx.DefaultSize, 0 )
+		bSizer1.Add( self.m_button3_delete, 0, wx.ALL, 5 )
 		
-		fgSizer1.Add( bSizer1, 1, wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_CENTER_VERTICAL, 5 )
+		
+		bSizer3.Add( bSizer1, 0, wx.EXPAND|wx.ALIGN_RIGHT, 5 )
 		
 		
-		self.SetSizer( fgSizer1 )
+		self.SetSizer( bSizer3 )
 		self.Layout()
 		
 		self.Centre( wx.BOTH )
+		
+		# Connect Events
+		self.m_button3_delete.Bind( wx.EVT_BUTTON, self.onDeleteClick )
 	
 	def __del__( self ):
 		pass
+	
+	
+	# Virtual event handlers, overide them in your derived class
+	def onDeleteClick( self, event ):
+		event.Skip()
 	
 
