@@ -270,8 +270,11 @@ class FillArea:
                             current_y = origin.y + (y * self.step)
                             for dx in [-offset, offset]:
                                 for dy in [-offset, offset]:
-                                    r = area.HitTestFilledArea(wxPoint(current_x + dx,
-                                                                       current_y + dy))
+                                    point_to_test = wxPoint(current_x + dx,
+                                                                       current_y + dy)
+                                    r = area.HitTestFilledArea(point_to_test)
+                                    t = area.HitTestForEdge(point_to_test)
+                                    r = r and not t
                                     if keepOutMode:
                                         testResult |= r
                                     else:
