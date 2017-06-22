@@ -61,6 +61,7 @@ FillArea.FillArea().SetDebug().SetNetname("GND").SetStepMM(1.27).SetSizeMM(0.6).
 
 
 class FillArea:
+
     """
     Automaticaly add via on area where there are no track/existing via,
     pads and keepout areas
@@ -197,6 +198,7 @@ class FillArea:
         m.SetReference("V%s_%s" % (x, y))
         m.SetValue("AUTO_VIA")
         m.SetLastEditTime()
+        m.SetAttributes(MOD_VIRTUAL)
         m.thisown = 0
         self.pcb.AddNative(m, ADD_APPEND)
         m.SetFlag(IS_NEW)
@@ -263,7 +265,6 @@ class FillArea:
                         for x in range(rectangle.__len__()):
                             testResult = not keepOutMode  # = False if is Keepout
                             offset = self.clearance + self.size / 2
-                            #offset = int(self.inter / 2)
                             # For keepout area: Deny Via
                             # For same net area: Allow if not denied by keepout
                             current_x = origin.x + (x * self.step)
@@ -271,7 +272,7 @@ class FillArea:
                             for dx in [-offset, offset]:
                                 for dy in [-offset, offset]:
                                     point_to_test = wxPoint(current_x + dx,
-                                                                       current_y + dy)
+                                                            current_y + dy)
                                     r = area.HitTestFilledArea(point_to_test)
                                     t = area.HitTestForEdge(point_to_test)
                                     r = r and not t
@@ -406,8 +407,9 @@ class FillArea:
                             (self.step / 4.0)
                         ran_y = (random.random() * self.step / 2.0) - \
                             (self.step / 4.0)
-                    self.AddModule(module, wxPoint(origin.x + (self.step * x) + ran_x,
-                                                   origin.y + (self.step * y) + ran_y), x, y)
+                    self.AddModule(
+                        module, wxPoint(origin.x + (self.step * x) + ran_x,
+                                        origin.y + (self.step * y) + ran_y), x, y)
 
         self.RefillBoardAreas()
 
