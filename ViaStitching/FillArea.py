@@ -372,7 +372,7 @@ class FillArea:
             self.PrintRect(rectangle)
 
         # Same job with existing text
-        for draw in self.pcb.m_Drawings:
+        for draw in self.pcb.DrawingsList():
             if (draw.GetClass() == 'PTEXT' and
                     self.pcb.GetLayerID(draw.GetLayerName()) in (F_Cu, B_Cu)):
                 inter = float(self.clearance + self.size)

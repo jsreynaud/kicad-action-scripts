@@ -22,11 +22,11 @@ import FillArea
 import wx
 import FillAreaDialog
 
+
 class FillAreaDialogEx(FillAreaDialog.FillAreaDialog):
 
-    def onDeleteClick( self, event ):
+    def onDeleteClick(self, event):
         return self.EndModal(wx.ID_DELETE)
-
 
 
 class FillAreaAction(pcbnew.ActionPlugin):
@@ -62,7 +62,7 @@ class FillAreaAction(pcbnew.ActionPlugin):
                 fill.Run()
             except Exception:
                 wx.MessageDialog(None, "Invalid parameter")
-        if modal_result == wx.ID_DELETE:
+        elif modal_result == wx.ID_DELETE:
             try:
                 fill = FillArea.FillArea()
                 if a.m_Debug.IsChecked():
