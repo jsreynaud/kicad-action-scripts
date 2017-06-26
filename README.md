@@ -32,14 +32,14 @@ used as center.
 After select "Create a circular zone" in the Tools menu, choose the
 radius and the type of zone (normal or keep out).
 
-![The interface](image/circular1.png)
+![The interface](images/circular1.png)
 
 A circular zone will be created. Select it to change properties:
 
-![Select zone](image/circular2.png)
+![Select zone](images/circular2.png)
 
-![Open properties](image/circular3.png)
+![Open properties](images/circular3.png)
 
 Refill the area (B hotkey) then the circular zone is ready.
 
-![Final result](image/circular4.png)
+![Final result](images/circular4.png)
