@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*- 
 
 ###########################################################################
-## Python code generated with wxFormBuilder (version Feb 16 2016)
+## Python code generated with wxFormBuilder (version Dec 21 2016)
 ## http://www.wxformbuilder.org/
 ##
 ## PLEASE DO "NOT" EDIT THIS FILE!
@@ -17,7 +17,7 @@ import wx.xrc
 class CircularZoneDlg ( wx.Dialog ):
 	
 	def __init__( self, parent ):
-		wx.Dialog.__init__ ( self, parent, id = wx.ID_ANY, title = u"Circular zone parameters", pos = wx.DefaultPosition, size = wx.Size( 373,219 ), style = wx.DEFAULT_DIALOG_STYLE )
+		wx.Dialog.__init__ ( self, parent, id = wx.ID_ANY, title = u"Circular zone parameters", pos = wx.DefaultPosition, size = wx.Size( 373,290 ), style = wx.DEFAULT_DIALOG_STYLE )
 		
 		self.SetSizeHintsSz( wx.DefaultSize, wx.DefaultSize )
 		
@@ -39,18 +39,31 @@ class CircularZoneDlg ( wx.Dialog ):
 		bSizer31.Add( self.m_radiusMM, 1, wx.ALL|wx.EXPAND, 5 )
 		
 		
-		bSizer3.Add( bSizer31, 0, wx.EXPAND, 5 )
+		bSizer3.Add( bSizer31, 0, 0, 5 )
+		
+		bSizer4 = wx.BoxSizer( wx.HORIZONTAL )
 		
 		sbSizer1 = wx.StaticBoxSizer( wx.StaticBox( self, wx.ID_ANY, u"Type of Zone" ), wx.VERTICAL )
 		
 		self.m_radio_std = wx.RadioButton( sbSizer1.GetStaticBox(), wx.ID_ANY, u"Standard", wx.DefaultPosition, wx.DefaultSize, 0 )
-		sbSizer1.Add( self.m_radio_std, 1, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+		sbSizer1.Add( self.m_radio_std, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL|wx.EXPAND, 5 )
 		
 		self.m_radio_out = wx.RadioButton( sbSizer1.GetStaticBox(), wx.ID_ANY, u"Keepout", wx.DefaultPosition, wx.DefaultSize, 0 )
 		sbSizer1.Add( self.m_radio_out, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
 		
 		
-		bSizer3.Add( sbSizer1, 1, wx.EXPAND, 5 )
+		bSizer4.Add( sbSizer1, 1, wx.EXPAND, 5 )
+		
+		sbSizer2 = wx.StaticBoxSizer( wx.StaticBox( self, wx.ID_ANY, u"Number of segments" ), wx.VERTICAL )
+		
+		self.m_textCtrl_seg = wx.TextCtrl( sbSizer2.GetStaticBox(), wx.ID_ANY, u"64", wx.DefaultPosition, wx.DefaultSize, 0 )
+		sbSizer2.Add( self.m_textCtrl_seg, 0, wx.ALL|wx.EXPAND, 5 )
+		
+		
+		bSizer4.Add( sbSizer2, 1, wx.EXPAND, 5 )
+		
+		
+		bSizer3.Add( bSizer4, 1, wx.EXPAND, 5 )
 		
 		bSizer1 = wx.BoxSizer( wx.HORIZONTAL )
 		
@@ -66,7 +79,7 @@ class CircularZoneDlg ( wx.Dialog ):
 		bSizer1.Add( self.m_button2, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
 		
 		
-		bSizer3.Add( bSizer1, 1, wx.EXPAND|wx.ALIGN_RIGHT, 5 )
+		bSizer3.Add( bSizer1, 0, wx.ALIGN_RIGHT|wx.EXPAND, 5 )
 		
 		
 		self.SetSizer( bSizer3 )
