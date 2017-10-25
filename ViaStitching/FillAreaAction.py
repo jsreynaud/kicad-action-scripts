@@ -75,4 +75,5 @@ class FillAreaAction(pcbnew.ActionPlugin):
             print "Cancel"
         a.Destroy()
 
+
 FillAreaAction().register()

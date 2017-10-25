@@ -176,7 +176,8 @@ class FillArea:
         f.write(module_txt)
         f.close()
 
-        plugin = IO_MGR.PluginFind(IO_MGR.KICAD)
+        plugin = IO_MGR.PluginFind(
+            IO_MGR.GuessPluginTypeFromLibPath(self.tmp_dir))
         module = plugin.FootprintLoad(self.tmp_dir, "VIA_MATRIX")
         module.FindPadByName("1").SetSize(wxSize(self.size, self.size))
         module.FindPadByName("1").SetDrillSize(wxSize(self.drill, self.drill))
