@@ -77,9 +77,9 @@ class FillArea:
         # Step between via
         self.SetStepMM(2.54)
         # Size of the via (diameter of copper)
-        self.SetSizeMM(0.35)
+        self.SetSizeMM(0.46)
         # Size of the drill (diameter)
-        self.SetDrillMM(0.30)
+        self.SetDrillMM(0.20)
         # Isolation between via and other elements
         # ie: radius from the border of the via
         self.SetClearanceMM(0.2)
@@ -93,6 +93,7 @@ class FillArea:
         self.netname = None
         self.debug = False
         self.random = False
+        self.star = False
         if self.netname is None:
             self.SetNetname("GND")
 
@@ -110,6 +111,10 @@ class FillArea:
     def SetRandom(self):
         random.seed()
         self.random = True
+        return self
+
+    def SetStar(self):
+        self.star = True
         return self
 
     def SetPCB(self, pcb):
@@ -157,34 +162,7 @@ class FillArea:
         print()
 
     def PrepareFootprint(self):
-        """Don't use via since it's not possible to force a Net.
-        So use a fake footprint (only one THPad)
-        """
-        self.tmp_dir = tempfile.mkdtemp(".pretty")
-        module_txt = """(module VIA_MATRIX (layer F.Cu) (tedit 5862471A)
-  (fp_text reference REF** (at 0 0) (layer F.SilkS) hide
-    (effects (font (size 0 0) (thickness 0.0)))
-  )
-  (fp_text value VIA_MATRIX (at 0 0) (layer F.Fab) hide
-    (effects (font (size 0 0) (thickness 0.0)))
-  )
-  (pad 1 thru_hole circle (at 0 0) (size 1.5 1.5) (drill 0.762) (layers *.Cu))
-)"""
-
-        # Create the footprint on a temp directory
-        f = open(os.path.join(self.tmp_dir, "VIA_MATRIX.kicad_mod"), 'w')
-        f.write(module_txt)
-        f.close()
-
-        plugin = IO_MGR.PluginFind(
-            IO_MGR.GuessPluginTypeFromLibPath(self.tmp_dir))
-        module = plugin.FootprintLoad(self.tmp_dir, "VIA_MATRIX")
-        module.FindPadByName("1").SetSize(wxSize(self.size, self.size))
-        module.FindPadByName("1").SetDrillSize(wxSize(self.drill, self.drill))
-        module.FindPadByName("1").SetLocalClearance(int(self.clearance))
-        module.FindPadByName("1").SetNet(self.pcb.FindNet(self.netname))
-        module.FindPadByName("1").SetZoneConnection(PAD_ZONE_CONN_FULL)
-        return module
+        return self
 
     def CleanupFootprint(self):
         """
@@ -194,15 +172,14 @@ class FillArea:
             shutil.rmtree(self.tmp_dir)
 
     def AddModule(self, module, position, x, y):
-        m = MODULE(module)
+        m = VIA(self.pcb)
         m.SetPosition(position)
-        m.SetReference("V%s_%s" % (x, y))
-        m.SetValue("AUTO_VIA")
-        m.SetLastEditTime()
-        m.SetAttributes(MOD_VIRTUAL)
-        m.thisown = 0
-        self.pcb.AddNative(m, ADD_APPEND)
-        m.SetFlag(IS_NEW)
+        m.SetNet(self.pcb.FindNet("GND"))
+        m.SetViaType(VIA_THROUGH)
+        print(self.size)
+        m.SetDrill(int(self.drill))
+        m.SetWidth(int(self.size))
+        self.pcb.Add(m)
 
     def RefillBoardAreas(self):
         for i in range(self.pcb.GetAreaCount()):
@@ -265,7 +242,7 @@ class FillArea:
                     for y in range(rectangle[0].__len__()):
                         for x in range(rectangle.__len__()):
                             testResult = not keepOutMode  # = False if is Keepout
-                            offset = self.clearance + self.size / 2
+                            offset = (self.clearance) + self.size / 2
                             # For keepout area: Deny Via
                             # For same net area: Allow if not denied by keepout
                             current_x = origin.x + (x * self.step)
@@ -404,9 +381,21 @@ class FillArea:
                             (self.step / 4.0)
                         ran_y = (random.random() * self.step / 2.0) - \
                             (self.step / 4.0)
-                    self.AddModule(
-                        module, wxPoint(origin.x + (self.step * x) + ran_x,
-                                        origin.y + (self.step * y) + ran_y), x, y)
+                    if self.star:
+                        if y%2:
+                            if ((x+1)%2):
+                                self.AddModule(
+                                    module, wxPoint(origin.x + (self.step * x) + ran_x,
+                                                    origin.y + (self.step * y) + ran_y), x, y)
+                        else:
+                            if (x%2):
+                                self.AddModule(
+                                    module, wxPoint(origin.x + (self.step * x) + ran_x,
+                                                    origin.y + (self.step * y) + ran_y), x, y)
+                    else:
+                        self.AddModule(
+                            module, wxPoint(origin.x + (self.step * x) + ran_x,
+                                            origin.y + (self.step * y) + ran_y), x, y)
 
         self.RefillBoardAreas()
 
