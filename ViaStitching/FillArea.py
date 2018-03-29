@@ -274,7 +274,7 @@ class FillArea:
                                 for dy in [-offset, offset]:
                                     point_to_test = wxPoint(current_x + dx,
                                                             current_y + dy)
-                                    r = area.HitTestFilledArea(point_to_test)
+                                    r = area.HitTestInsideZone(point_to_test)
                                     t = area.HitTestForEdge(point_to_test)
                                     r = r and not t
                                     if keepOutMode:
@@ -282,18 +282,14 @@ class FillArea:
                                     else:
                                         testResult &= r
 
+                                    if testResult:
                                         if keepOutMode:
-                                            testResult |= r
+                                            rectangle[x][y] = 0x1
                                         else:
-                                            testResult &= r
-                                            if testResult:
-                                                if keepOutMode:
-                                                    rectangle[x][y] = 0x1
-                                                else:
-                                                    # Allow only if it's first step disabling
-                                                    # ie: keepout are keeped
-                                                    if rectangle[x][y] == 0x8:
-                                                        rectangle[x][y] = 0
+                                            # Allow only if it's first step disabling
+                                            # ie: keepout are keeped
+                                            if rectangle[x][y] == 0x8:
+                                                rectangle[x][y] = 0
 
         if self.debug:
             print("Post Area handling")
