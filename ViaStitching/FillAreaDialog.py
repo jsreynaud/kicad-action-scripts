@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*- 
 
 ###########################################################################
-## Python code generated with wxFormBuilder (version Feb 16 2016)
+## Python code generated with wxFormBuilder (version Dec 21 2016)
 ## http://www.wxformbuilder.org/
 ##
 ## PLEASE DO "NOT" EDIT THIS FILE!
@@ -77,6 +77,13 @@ class FillAreaDialog ( wx.Dialog ):
 		
 		self.m_Random = wx.CheckBox( self, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0 )
 		fgSizer1.Add( self.m_Random, 0, wx.ALL, 5 )
+		
+		self.m_staticText42 = wx.StaticText( self, wx.ID_ANY, u"Star Pattern", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.m_staticText42.Wrap( -1 )
+		fgSizer1.Add( self.m_staticText42, 0, wx.ALL, 5 )
+		
+		self.m_Star = wx.CheckBox( self, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0 )
+		fgSizer1.Add( self.m_Star, 0, wx.ALL, 5 )
 		
 		self.m_staticText81 = wx.StaticText( self, wx.ID_ANY, u"Only under selected Zone", wx.DefaultPosition, wx.DefaultSize, 0 )
 		self.m_staticText81.Wrap( -1 )

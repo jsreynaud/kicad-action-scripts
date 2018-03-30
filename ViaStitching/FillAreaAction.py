@@ -38,11 +38,12 @@ class FillAreaAction(pcbnew.ActionPlugin):
 
     def Run(self):
         a = FillAreaDialogEx(None)
-        a.m_SizeMM.SetValue("0.35")
+        a.m_SizeMM.SetValue("0.46")
         a.m_StepMM.SetValue("2.54")
-        a.m_DrillMM.SetValue("0.3")
+        a.m_DrillMM.SetValue("0.2")
         a.m_Netname.SetValue("auto")
         a.m_ClearanceMM.SetValue("0.2")
+        a.m_Star.SetValue(True)
         modal_result = a.ShowModal()
         if modal_result == wx.ID_OK:
             fill = FillArea.FillArea()
@@ -57,6 +58,8 @@ class FillAreaAction(pcbnew.ActionPlugin):
                     fill.SetDebug()
                 if a.m_Random.IsChecked():
                     fill.SetRandom()
+                if a.m_Star.IsChecked():
+                    fill.SetStar()
                 if a.m_only_selected.IsChecked():
                     fill.OnlyOnSelectedArea()
                 fill.Run()
