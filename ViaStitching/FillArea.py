@@ -161,9 +161,6 @@ class FillArea:
             print()
         print()
 
-    def PrepareFootprint(self):
-        return self
-
     def CleanupFootprint(self):
         """
         cleanup temp footprint
@@ -171,14 +168,14 @@ class FillArea:
         if self.tmp_dir and os.path.isdir(self.tmp_dir):
             shutil.rmtree(self.tmp_dir)
 
-    def AddModule(self, module, position, x, y):
+    def AddVia(self, position, x, y):
         m = VIA(self.pcb)
         m.SetPosition(position)
-        m.SetNet(self.pcb.FindNet("GND"))
+        m.SetNet(self.pcb.FindNet(self.netname))
         m.SetViaType(VIA_THROUGH)
-        print(self.size)
         m.SetDrill(int(self.drill))
         m.SetWidth(int(self.size))
+        m.SetTimeStamp(33)  # USE 33 as timestamp to mark this via as generated
         self.pcb.Add(m)
 
     def RefillBoardAreas(self):
@@ -195,18 +192,18 @@ class FillArea:
         """
 
         if self.delete_vias:
-            for module in self.pcb.GetModules():
-                if self.debug:
-                    print("* Deleting module: %s" % module.GetValue())
-                if module.GetValue() == "AUTO_VIA":
-                    self.pcb.RemoveNative(module)
+            for via in self.pcb.GetTracks():
+                if via.Type() == PCB_VIA_T:
+                    if via.GetTimeStamp() == 33:
+                        if self.debug:
+                            print("* Deleting via %u" % via.GetTimeStamp())
+                        self.pcb.RemoveNative(via)
             self.RefillBoardAreas()
             return  # no need to run the rest of logic
 
         lboard = self.pcb.ComputeBoundingBox()
         rectangle = []
         origin = lboard.GetPosition()
-        module = self.PrepareFootprint()
 
         # Create an initial rectangle: all is off
         # get a margin to avoid out of range
@@ -382,20 +379,20 @@ class FillArea:
                         ran_y = (random.random() * self.step / 2.0) - \
                             (self.step / 4.0)
                     if self.star:
-                        if y%2:
-                            if ((x+1)%2):
-                                self.AddModule(
-                                    module, wxPoint(origin.x + (self.step * x) + ran_x,
-                                                    origin.y + (self.step * y) + ran_y), x, y)
-                        else:
-                            if (x%2):
-                                self.AddModule(
-                                    module, wxPoint(origin.x + (self.step * x) + ran_x,
-                                                    origin.y + (self.step * y) + ran_y), x, y)
-                    else:
-                        self.AddModule(
-                            module, wxPoint(origin.x + (self.step * x) + ran_x,
+                        if y % 2:
+                            if ((x + 1) % 2):
+                                self.AddVia(
+                                    wxPoint(origin.x + (self.step * x) + ran_x,
                                             origin.y + (self.step * y) + ran_y), x, y)
+                        else:
+                            if (x % 2):
+                                self.AddVia(
+                                    wxPoint(origin.x + (self.step * x) + ran_x,
+                                            origin.y + (self.step * y) + ran_y), x, y)
+                    else:
+                        self.AddVia(
+                            wxPoint(origin.x + (self.step * x) + ran_x,
+                                    origin.y + (self.step * y) + ran_y), x, y)
 
         self.RefillBoardAreas()
 
