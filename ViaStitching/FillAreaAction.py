@@ -41,19 +41,18 @@ class FillAreaAction(pcbnew.ActionPlugin):
         a.m_SizeMM.SetValue("0.46")
         a.m_StepMM.SetValue("2.54")
         a.m_DrillMM.SetValue("0.2")
-        a.m_Netname.SetValue("auto")
+        a.m_Netname.SetValue("GND")
         a.m_ClearanceMM.SetValue("0.2")
         a.m_Star.SetValue(True)
         modal_result = a.ShowModal()
         if modal_result == wx.ID_OK:
-            fill = FillArea.FillArea()
             try:
+                fill = FillArea.FillArea()
                 fill.SetStepMM(float(a.m_StepMM.GetValue()))
                 fill.SetSizeMM(float(a.m_SizeMM.GetValue()))
                 fill.SetDrillMM(float(a.m_DrillMM.GetValue()))
                 fill.SetClearanceMM(float(a.m_ClearanceMM.GetValue()))
-                if a.m_Netname.GetValue() != "auto":
-                    fill.SetNetname(a.m_Netname.GetValue())
+                fill.SetNetname(a.m_Netname.GetValue())
                 if a.m_Debug.IsChecked():
                     fill.SetDebug()
                 if a.m_Random.IsChecked():
@@ -68,6 +67,7 @@ class FillAreaAction(pcbnew.ActionPlugin):
         elif modal_result == wx.ID_DELETE:
             try:
                 fill = FillArea.FillArea()
+                fill.SetNetname(a.m_Netname.GetValue())
                 if a.m_Debug.IsChecked():
                     fill.SetDebug()
                 fill.DeleteVias()
