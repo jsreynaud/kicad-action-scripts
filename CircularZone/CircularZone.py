@@ -1,6 +1,6 @@
 from math import *
 import pcbnew
-from CircularZoneDlg import CircularZoneDlg
+from .CircularZoneDlg import CircularZoneDlg
 import wx
 
 

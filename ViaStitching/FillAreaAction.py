@@ -19,9 +19,9 @@
 #  MA 02110-1301, USA.
 from __future__ import print_function
 import pcbnew
-import FillArea
 import wx
-import FillAreaDialog
+from . import FillArea
+from . import FillAreaDialog
 
 
 class FillAreaDialogEx(FillAreaDialog.FillAreaDialog):
