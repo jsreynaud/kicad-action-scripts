@@ -250,19 +250,28 @@ STEP         = '-'
                 offset = max(self.clearance, area_clearance) + self.size / 2                # Offset is half the size of the via plus the clearance of the via or the area
                 for dx in [-offset, offset]:
                     for dy in [-offset, offset]:                                            # All 4 corners of the via are testet (upper, lower, left, right) but not the center
+                        print("dx:{} dy:{}".format(dx,dy))
                         point_to_test   = wxPoint(via.PosX + dx, via.PosY + dy)
+                        print("point_to_Test")
 
                         hit_test_area   = area.HitTestFilledArea(point_to_test)             # Collides with a filled area
-                        hit_test_edge   = area.HitTestForEdge(point_to_test)                # Collides with an edge/corner
+                        print("hit_test_area   ")
+                        #hit_test_edge   = area.HitTestForEdge(point_to_test)                # Collides with an edge/corner
+                        print("hit_test_edge   ")
                         hit_test_zone   = area.HitTestInsideZone(point_to_test)             # Is inside a zone (e.g. KeepOut)
+                        print("hit_test_zone   ")
 
+                        print("dx:{} dy:{}".format(dx,dy))
                         if is_keepout_area and (hit_test_area or hit_test_edge or hit_test_zone):
+                            print("hit_test_zone1")
                             return self.REASON_KEEPOUT                                      # Collides with keepout
 
                         elif (hit_test_area or hit_test_edge):
+                            print("hit_test_zone2")
                             return self.REASON_OTHER_SIGNAL                                 # Collides with another signal (e.g. on another layer)
 
                         elif hit_test_zone:
+                            print("hit_test_zone2")
                             # Check if the zone is higher priority than other zones of the target net in the same point
                             target_areas_on_same_layer = filter(lambda x: ((x.GetPriority() > area_priority) and (x.GetLayer() == area_layer) and (x.GetNetname().upper() == self.netname)), all_areas)
                             for area_with_higher_priority in target_areas_on_same_layer:
@@ -270,8 +279,7 @@ STEP         = '-'
                                     break                                                   # Area of target net has higher priority on this layer
                             else:
                                 return self.REASON_OTHER_SIGNAL                             # Collides with another signal (e.g. on another layer)
-
-        return self.REASON_OK
+            return self.REASON_OK
 
     def ClearViaInStepSize(self, rectangle, x, y, distance):
         '''
@@ -387,6 +395,7 @@ STEP         = '-'
         # Enum all vias
         print ("Processing all vias of target area...")
         for via in via_list:
+            print("x:{} y:{} len:{}".format(via.X,via.Y,len(via_list)))
             reason = self.CheckViaInAllAreas(via, all_areas)
             if reason != self.REASON_OK:
                 rectangle[via.X][via.Y] = reason
