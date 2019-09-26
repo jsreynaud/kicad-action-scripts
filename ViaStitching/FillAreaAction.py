@@ -43,7 +43,7 @@ class FillAreaDialogEx(FillAreaDialog.FillAreaDialog):
 class FillAreaAction(pcbnew.ActionPlugin):
 
     def defaults(self):
-        self.name = "Via Stitching"
+        self.name = "Via Stitching Generator"
         self.category = "Modify PCB"
         self.description = "Via Stitching for PCB Zone"
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "./stitching-vias.png")
