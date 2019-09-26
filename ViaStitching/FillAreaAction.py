@@ -22,8 +22,18 @@ import pcbnew
 import wx
 from . import FillArea
 from . import FillAreaDialog
+import os
 
-
+def PopulateNets(anet,dlg):
+    nets = pcbnew.GetBoard().GetNetsByName()
+    for netname, net in nets.items():
+        netname = net.GetNetname()
+        if netname != None and netname != "":
+            dlg.m_cbNet.Append(netname)
+    if anet != None:
+        index = dlg.m_cbNet.FindString(anet)
+        dlg.m_cbNet.Select(index)                   
+#
 class FillAreaDialogEx(FillAreaDialog.FillAreaDialog):
 
     def onDeleteClick(self, event):
@@ -33,27 +43,33 @@ class FillAreaDialogEx(FillAreaDialog.FillAreaDialog):
 class FillAreaAction(pcbnew.ActionPlugin):
 
     def defaults(self):
-        self.name = "Via stitching WX"
-        self.category = "Undefined"
-        self.description = ""
-
+        self.name = "Via Stitching"
+        self.category = "Modify PCB"
+        self.description = "Via Stitching for PCB Zone"
+        self.icon_file_name = os.path.join(os.path.dirname(__file__), "./stitching-vias.png")
+            
     def Run(self):
         a = FillAreaDialogEx(None)
-        a.m_SizeMM.SetValue("0.46")
+        a.m_SizeMM.SetValue("0.8")
         a.m_StepMM.SetValue("2.54")
-        a.m_DrillMM.SetValue("0.2")
-        a.m_Netname.SetValue("GND")
+        a.m_DrillMM.SetValue("0.3")
+        #a.m_Netname.SetValue("GND")
         a.m_ClearanceMM.SetValue("0.2")
         a.m_Star.SetValue(True)
+        self.board = pcbnew.GetBoard()
+        PopulateNets("GND",a)
         modal_result = a.ShowModal()
         if modal_result == wx.ID_OK:
-            try:
+            wx.LogMessage('Via Stitching: Version 1.3')
+            if 1: #try:
                 fill = FillArea.FillArea()
                 fill.SetStepMM(float(a.m_StepMM.GetValue()))
                 fill.SetSizeMM(float(a.m_SizeMM.GetValue()))
                 fill.SetDrillMM(float(a.m_DrillMM.GetValue()))
                 fill.SetClearanceMM(float(a.m_ClearanceMM.GetValue()))
-                fill.SetNetname(a.m_Netname.GetValue())
+                #fill.SetNetname(a.m_Netname.GetValue())
+                netname = a.m_cbNet.GetStringSelection()
+                fill.SetNetname(netname)
                 if a.m_Debug.IsChecked():
                     fill.SetDebug()
                 if a.m_Random.IsChecked():
@@ -63,17 +79,17 @@ class FillAreaAction(pcbnew.ActionPlugin):
                 if a.m_only_selected.IsChecked():
                     fill.OnlyOnSelectedArea()
                 fill.Run()
-            except Exception:
+            else: #except Exception:
                 wx.MessageDialog(None, "Invalid parameter")
         elif modal_result == wx.ID_DELETE:
-            try:
+            if 1: #try:
                 fill = FillArea.FillArea()
-                fill.SetNetname(a.m_Netname.GetValue())
+                fill.SetNetname(a.m_cbNet.GetStringSelection()) #a.m_Netname.GetValue())
                 if a.m_Debug.IsChecked():
                     fill.SetDebug()
                 fill.DeleteVias()
                 fill.Run()
-            except Exception:
+            else: #except Exception:
                 wx.MessageDialog(None, "Invalid parameter for delete")
         else:
             print("Cancel")

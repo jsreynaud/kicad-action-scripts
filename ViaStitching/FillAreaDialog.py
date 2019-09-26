@@ -17,9 +17,14 @@ import wx.xrc
 class FillAreaDialog ( wx.Dialog ):
 	
 	def __init__( self, parent ):
-		wx.Dialog.__init__ ( self, parent, id = wx.ID_ANY, title = u"Fill Area parameters", pos = wx.DefaultPosition, size = wx.Size( 369,389 ), style = wx.DEFAULT_DIALOG_STYLE )
+		wx.Dialog.__init__ ( self, parent, id = wx.ID_ANY, title = u"Fill Area parameters", pos = wx.DefaultPosition, size = wx.Size( 402,487 ), style = wx.DEFAULT_DIALOG_STYLE )
 		
-		self.SetSizeHintsSz( wx.DefaultSize, wx.DefaultSize )
+		import sys
+		if sys.version_info[0] == 2:
+			self.SetSizeHintsSz( wx.DefaultSize, wx.DefaultSize )
+		else:
+			self.SetSizeHints( wx.DefaultSize, wx.DefaultSize )
+ 		#self.SetSizeHintsSz( wx.DefaultSize, wx.DefaultSize )
 		
 		bSizer3 = wx.BoxSizer( wx.VERTICAL )
 		
@@ -54,8 +59,9 @@ class FillAreaDialog ( wx.Dialog ):
 		self.m_staticText6.Wrap( -1 )
 		fgSizer1.Add( self.m_staticText6, 1, wx.ALL|wx.EXPAND, 5 )
 		
-		self.m_Netname = wx.TextCtrl( self, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0 )
-		fgSizer1.Add( self.m_Netname, 1, wx.ALL|wx.EXPAND, 5 )
+		m_cbNetChoices = []
+		self.m_cbNet = wx.ComboBox( self, wx.ID_ANY, u"GND", wx.DefaultPosition, wx.DefaultSize, m_cbNetChoices, 0 )
+		fgSizer1.Add( self.m_cbNet, 0, wx.ALL, 5 )
 		
 		self.m_staticText2 = wx.StaticText( self, wx.ID_ANY, u"Step between via", wx.DefaultPosition, wx.DefaultSize, 0 )
 		self.m_staticText2.Wrap( -1 )
