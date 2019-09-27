@@ -257,7 +257,7 @@ STEP         = '-'
             area_priority               = area.GetPriority()
             is_keepout_area             = area.GetIsKeepout()
             is_target_net               = (area.GetNetname() == self.netname) #(area.GetNetname().upper() == self.netname)
-            wx.LogMessage(area.GetNetname()) #wx.LogMessage(area.GetNetname().upper())
+            #wx.LogMessage(area.GetNetname()) #wx.LogMessage(area.GetNetname().upper())
 
             if (not is_target_net):                                                         # Only process areas that are not in the target net
                 offset = max(self.clearance, area_clearance) + self.size / 2                # Offset is half the size of the via plus the clearance of the via or the area
