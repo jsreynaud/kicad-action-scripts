@@ -356,7 +356,11 @@ STEP         = '-'
 
         all_pads        = self.pcb.GetPads()
         all_tracks      = self.pcb.GetTracks()
-        all_drawings    = filter(lambda x: x.GetClass() == 'PTEXT' and self.pcb.GetLayerID(x.GetLayerName()) in (F_Cu, B_Cu), self.pcb.DrawingsList())
+        try:
+            all_drawings    = filter(lambda x: x.GetClass() == 'PTEXT' and self.pcb.GetLayerID(x.GetLayerName()) in (F_Cu, B_Cu), self.pcb.DrawingsList())
+        except:
+            all_drawings = []
+            wxPrint("exception on missing BOARD.DrawingsList")
         all_areas       = [self.pcb.GetArea(i) for i in xrange(self.pcb.GetAreaCount())]
         #target_areas    = filter(lambda x: (x.GetNetname().upper() == self.netname), all_areas)         # KeepOuts are filtered because they have no name
         target_areas    = filter(lambda x: (x.GetNetname() == self.netname), all_areas)         # KeepOuts are filtered because they have no name
