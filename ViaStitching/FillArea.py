@@ -266,9 +266,13 @@ STEP         = '-'
                         point_to_test   = wxPoint(via.PosX + dx, via.PosY + dy)
 
                         hit_test_area   = area.HitTestFilledArea(point_to_test)             # Collides with a filled area
-                        hit_test_edge   = area.HitTestForEdge(point_to_test,1)                # Collides with an edge/corner
-                        hit_test_zone   = area.HitTestInsideZone(point_to_test)             # Is inside a zone (e.g. KeepOut)
-
+                        hit_test_edge   = area.HitTestForEdge(point_to_test,1)              # Collides with an edge/corner
+                        try:
+                            hit_test_zone   = area.HitTestInsideZone(point_to_test)         # Is inside a zone (e.g. KeepOut)
+                        except:
+                            hit_test_zone = False
+                            wxPrint('exception: missing HitTestInsideZone: To Be Fixed')
+                            #hit_test_zone   = area.HitTest(point_to_test)              # Is inside a zone (e.g. KeepOut) kicad nightly 5.99
                         if is_keepout_area and (hit_test_area or hit_test_edge or hit_test_zone):
                             return self.REASON_KEEPOUT                                      # Collides with keepout
 
@@ -359,8 +363,8 @@ STEP         = '-'
         try:
             all_drawings    = filter(lambda x: x.GetClass() == 'PTEXT' and self.pcb.GetLayerID(x.GetLayerName()) in (F_Cu, B_Cu), self.pcb.DrawingsList())
         except:
-            all_drawings = []
-            wxPrint("exception on missing BOARD.DrawingsList")
+            all_drawings    = filter(lambda x: x.GetClass() == 'PTEXT' and self.pcb.GetLayerID(x.GetLayerName()) in (F_Cu, B_Cu), self.pcb.Drawings())
+            #wxPrint("exception on missing BOARD.DrawingsList")
         all_areas       = [self.pcb.GetArea(i) for i in xrange(self.pcb.GetAreaCount())]
         #target_areas    = filter(lambda x: (x.GetNetname().upper() == self.netname), all_areas)         # KeepOuts are filtered because they have no name
         target_areas    = filter(lambda x: (x.GetNetname() == self.netname), all_areas)         # KeepOuts are filtered because they have no name
