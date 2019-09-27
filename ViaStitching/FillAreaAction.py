@@ -47,7 +47,8 @@ class FillAreaAction(pcbnew.ActionPlugin):
         self.category = "Modify PCB"
         self.description = "Via Stitching for PCB Zone"
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "./stitching-vias.png")
-            
+        self.show_toolbar_button = True
+        
     def Run(self):
         a = FillAreaDialogEx(None)
         a.m_SizeMM.SetValue("0.8")
