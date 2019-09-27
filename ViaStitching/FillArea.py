@@ -425,13 +425,15 @@ STEP         = '-'
 
             for x in range(start_x, stop_x + 1):
                 for y in range(start_y, stop_y + 1):
-                    if isinstance(rectangle[x][y], ViaObject):
-                        start_rect = wxPoint(origin.x + (l_clearance * x) - local_offset,
-                                            origin.y + (l_clearance * y) - local_offset)
-                        size_rect = wxSize(2 * local_offset, 2 * local_offset)
-                        if pad.HitTest(EDA_RECT(start_rect, size_rect), False):
-                            rectangle[x][y] = self.REASON_PAD
-
+                    try:
+                        if isinstance(rectangle[x][y], ViaObject):
+                            start_rect = wxPoint(origin.x + (l_clearance * x) - local_offset,
+                                                origin.y + (l_clearance * y) - local_offset)
+                            size_rect = wxSize(2 * local_offset, 2 * local_offset)
+                            if pad.HitTest(EDA_RECT(start_rect, size_rect), False):
+                                rectangle[x][y] = self.REASON_PAD
+                    except:
+                        wxPrint("exception on Processing all pads...")
         if self.debug:
             wxPrint("\nPost pads:")
             self.PrintRect(rectangle)
