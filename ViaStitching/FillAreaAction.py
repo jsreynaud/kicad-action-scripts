@@ -61,13 +61,13 @@ class FillAreaAction(pcbnew.ActionPlugin):
         PopulateNets("GND",a)
         modal_result = a.ShowModal()
         if modal_result == wx.ID_OK:
-            wx.LogMessage('Via Stitching: Version 1.3')
+            wx.LogMessage('Via Stitching: Version 1.4')
             if 1: #try:
                 fill = FillArea.FillArea()
-                fill.SetStepMM(float(a.m_StepMM.GetValue()))
-                fill.SetSizeMM(float(a.m_SizeMM.GetValue()))
-                fill.SetDrillMM(float(a.m_DrillMM.GetValue()))
-                fill.SetClearanceMM(float(a.m_ClearanceMM.GetValue()))
+                fill.SetStepMM(float(a.m_StepMM.GetValue().replace(',','.')))
+                fill.SetSizeMM(float(a.m_SizeMM.GetValue().replace(',','.')))
+                fill.SetDrillMM(float(a.m_DrillMM.GetValue().replace(',','.')))
+                fill.SetClearanceMM(float(a.m_ClearanceMM.GetValue().replace(',','.')))
                 #fill.SetNetname(a.m_Netname.GetValue())
                 netname = a.m_cbNet.GetStringSelection()
                 fill.SetNetname(netname)

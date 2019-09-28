@@ -540,6 +540,7 @@ STEP         = '-'
             # How much "via steps" should be removed around a via (round up)
             clear_distance = int((self.step+l_clearance) / l_clearance)
 
+        via_placed = 0
         for x in xrange(len(rectangle)):
             for y in xrange(len(rectangle[0])):
                 if isinstance(rectangle[x][y], ViaObject):
@@ -555,6 +556,7 @@ STEP         = '-'
                         ran_y = (random.random() * l_clearance / 2.0) - (l_clearance / 4.0)
 
                     self.AddVia(wxPoint(via.PosX + ran_x, via.PosY + ran_y), via.X, via.Y)
+                    via_placed += 1
 
         if self.debug:
             wxPrint("\nFinal result:")
@@ -564,8 +566,8 @@ STEP         = '-'
 
         if self.filename:
             self.pcb.Save(self.filename)
-        wxPrint("Done!")
-
+        msg = "{:d} vias placed\n".format(via_placed)
+        wxPrint (msg+"Done!")
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
