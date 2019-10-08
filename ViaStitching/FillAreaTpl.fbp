@@ -45,7 +45,7 @@
             <property name="minimum_size"></property>
             <property name="name">FillAreaDialog</property>
             <property name="pos"></property>
-            <property name="size">402,540</property>
+            <property name="size">402,580</property>
             <property name="style">wxDEFAULT_DIALOG_STYLE</property>
             <property name="subclass"></property>
             <property name="title">Fill Area parameters</property>

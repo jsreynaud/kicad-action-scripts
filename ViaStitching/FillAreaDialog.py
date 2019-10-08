@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ###########################################################################
-## Python code generated with wxFormBuilder (version Oct  1 2019)
+## Python code generated with wxFormBuilder (version Oct 26 2018)
 ## http://www.wxformbuilder.org/
 ##
 ## PLEASE DO *NOT* EDIT THIS FILE!
@@ -17,9 +17,13 @@ import wx.xrc
 class FillAreaDialog ( wx.Dialog ):
 
 	def __init__( self, parent ):
-		wx.Dialog.__init__ ( self, parent, id = wx.ID_ANY, title = u"Fill Area parameters", pos = wx.DefaultPosition, size = wx.Size( 402,540 ), style = wx.DEFAULT_DIALOG_STYLE )
+		wx.Dialog.__init__ ( self, parent, id = wx.ID_ANY, title = u"Fill Area parameters", pos = wx.DefaultPosition, size = wx.Size( 402,580 ), style = wx.DEFAULT_DIALOG_STYLE )
 
-		self.SetSizeHints( wx.DefaultSize, wx.DefaultSize )
+		import sys
+		if sys.version_info[0] == 2:
+			self.SetSizeHintsSz( wx.DefaultSize, wx.DefaultSize )
+		else:
+			self.SetSizeHints( wx.DefaultSize, wx.DefaultSize )
 
 		bSizer3 = wx.BoxSizer( wx.VERTICAL )
 
