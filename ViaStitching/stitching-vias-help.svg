@@ -7,14 +7,14 @@
    xmlns="http://www.w3.org/2000/svg"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   height="45.245544"
-   width="73.978897"
+   height="40.400002"
+   width="73.133354"
    version="1.1"
    id="svg2"
    inkscape:version="0.92.3 (2405546, 2018-03-11)"
    sodipodi:docname="stitching-vias-help.svg"
-   viewBox="0 0 69.355216 42.417698"
-   inkscape:export-filename="C:\Users\userC\AppData\Roaming\kicad\scripting\plugins\ViaStitching\stitching-vias-help.png"
+   viewBox="0 0 68.56252 37.875002"
+   inkscape:export-filename="/home/mau/.kicad_plugins/ViaStitching/stitching-vias-help.png"
    inkscape:export-xdpi="270.51999"
    inkscape:export-ydpi="270.51999">
   <metadata
@@ -38,24 +38,24 @@
      guidetolerance="10"
      inkscape:pageopacity="0"
      inkscape:pageshadow="2"
-     inkscape:window-width="2560"
-     inkscape:window-height="1361"
+     inkscape:window-width="1600"
+     inkscape:window-height="824"
      id="namedview38"
      showgrid="true"
      inkscape:snap-to-guides="false"
      inkscape:snap-grids="true"
-     inkscape:zoom="14.553175"
-     inkscape:cx="17.310764"
-     inkscape:cy="9.229069"
-     inkscape:window-x="-9"
-     inkscape:window-y="-9"
+     inkscape:zoom="13.427526"
+     inkscape:cx="36.566677"
+     inkscape:cy="22.199999"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
      inkscape:window-maximized="1"
      inkscape:current-layer="svg2"
      showguides="true"
      inkscape:guide-bbox="true"
      fit-margin-top="1"
      fit-margin-left="2"
-     fit-margin-right="1"
+     fit-margin-right="5"
      fit-margin-bottom="1">
     <inkscape:grid
        type="xygrid"
@@ -66,8 +66,8 @@
        snapvisiblegridlinesonly="true"
        spacingx="0.5"
        spacingy="0.5"
-       originx="29.615099"
-       originy="14.20885" />
+       originx="27.34375"
+       originy="11.937501" />
   </sodipodi:namedview>
   <defs
      id="defs4">
@@ -98,13 +98,13 @@
      sodipodi:nodetypes="ccccc"
      inkscape:connector-curvature="0"
      id="path3872"
-     d="m 4.146349,3.208849 v 36 h 62.000018 l -1.8e-5,-36 z"
+     d="m 1.875,0.9375 v 36 h 62.000018 l -1.8e-5,-36 z"
      style="opacity:0.69599998;fill:#dfbd8a;fill-opacity:1;stroke:none;stroke-width:4.54269791;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
      inkscape:export-xdpi="82.105263"
      inkscape:export-ydpi="82.105263" />
   <g
      id="g1472"
-     transform="translate(5.358933,5.8591988)">
+     transform="translate(3.087584,3.5878498)">
     <g
        transform="rotate(90,28.381175,29.318675)"
        id="g928">
