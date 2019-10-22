@@ -128,7 +128,7 @@ class FillArea:
                     break
         self.netname = None
         self.debug = False
-        self.random = True
+        self.random = False
         self.star = False
         if self.netname is None:
             self.SetNetname("GND")
@@ -145,9 +145,9 @@ class FillArea:
         self.debug = True
         return self
 
-    def SetRandom(self):
+    def SetRandom(self, r):
         random.seed()
-        self.random = True
+        self.random = r
         return self
 
     def SetStar(self):
@@ -567,7 +567,8 @@ STEP         = '-'
         if self.filename:
             self.pcb.Save(self.filename)
         msg = "{:d} vias placed\n".format(via_placed)
-        wxPrint (msg+"Done!")
+        wxPrint(msg+"Done!")
+
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:

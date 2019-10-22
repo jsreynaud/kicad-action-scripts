@@ -24,7 +24,8 @@ from . import FillArea
 from . import FillAreaDialog
 import os
 
-def PopulateNets(anet,dlg):
+
+def PopulateNets(anet, dlg):
     nets = pcbnew.GetBoard().GetNetsByName()
     for netname, net in nets.items():
         netname = net.GetNetname()
@@ -32,8 +33,10 @@ def PopulateNets(anet,dlg):
             dlg.m_cbNet.Append(netname)
     if anet != None:
         index = dlg.m_cbNet.FindString(anet)
-        dlg.m_cbNet.Select(index)                   
+        dlg.m_cbNet.Select(index)
 #
+
+
 class FillAreaDialogEx(FillAreaDialog.FillAreaDialog):
 
     def onDeleteClick(self, event):
@@ -48,56 +51,55 @@ class FillAreaAction(pcbnew.ActionPlugin):
         self.description = "Via Stitching for PCB Zone"
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "./stitching-vias.png")
         self.show_toolbar_button = True
-        
+
     def Run(self):
         a = FillAreaDialogEx(None)
-        #a.m_SizeMM.SetValue("0.8")
+        # a.m_SizeMM.SetValue("0.8")
         a.m_StepMM.SetValue("2.54")
-        #a.m_DrillMM.SetValue("0.3")
-        #a.m_Netname.SetValue("GND")
-        #a.m_ClearanceMM.SetValue("0.2")
+        # a.m_DrillMM.SetValue("0.3")
+        # a.m_Netname.SetValue("GND")
+        # a.m_ClearanceMM.SetValue("0.2")
         a.m_Star.SetValue(True)
-        a.m_bitmapStitching.SetBitmap(wx.Bitmap( os.path.join(os.path.dirname(os.path.realpath(__file__)), "stitching-vias-help.png") ) )
+        a.m_bitmapStitching.SetBitmap(wx.Bitmap(os.path.join(os.path.dirname(os.path.realpath(__file__)), "stitching-vias-help.png")))
         self.board = pcbnew.GetBoard()
         self.boardDesignSettings = self.board.GetDesignSettings()
         a.m_SizeMM.SetValue(str(pcbnew.ToMM(self.boardDesignSettings.GetCurrentViaSize())))
         a.m_DrillMM.SetValue(str(pcbnew.ToMM(self.boardDesignSettings.GetCurrentViaDrill())))
         a.m_ClearanceMM.SetValue(str(pcbnew.ToMM(self.boardDesignSettings.GetDefault().GetClearance())))
         a.SetMinSize(a.GetSize())
-        
-        PopulateNets("GND",a)
+
+        PopulateNets("GND", a)
         modal_result = a.ShowModal()
         if modal_result == wx.ID_OK:
             wx.LogMessage('Via Stitching: Version 1.4')
-            if 1: #try:
+            if 1:  # try:
                 fill = FillArea.FillArea()
-                fill.SetStepMM(float(a.m_StepMM.GetValue().replace(',','.')))
-                fill.SetSizeMM(float(a.m_SizeMM.GetValue().replace(',','.')))
-                fill.SetDrillMM(float(a.m_DrillMM.GetValue().replace(',','.')))
-                fill.SetClearanceMM(float(a.m_ClearanceMM.GetValue().replace(',','.')))
-                #fill.SetNetname(a.m_Netname.GetValue())
+                fill.SetStepMM(float(a.m_StepMM.GetValue().replace(',', '.')))
+                fill.SetSizeMM(float(a.m_SizeMM.GetValue().replace(',', '.')))
+                fill.SetDrillMM(float(a.m_DrillMM.GetValue().replace(',', '.')))
+                fill.SetClearanceMM(float(a.m_ClearanceMM.GetValue().replace(',', '.')))
+                # fill.SetNetname(a.m_Netname.GetValue())
                 netname = a.m_cbNet.GetStringSelection()
                 fill.SetNetname(netname)
                 if a.m_Debug.IsChecked():
                     fill.SetDebug()
-                if a.m_Random.IsChecked():
-                    fill.SetRandom()
+                fill.SetRandom(a.m_Random.IsChecked())
                 if a.m_Star.IsChecked():
                     fill.SetStar()
                 if a.m_only_selected.IsChecked():
                     fill.OnlyOnSelectedArea()
                 fill.Run()
-            else: #except Exception:
+            else:  # except Exception:
                 wx.MessageDialog(None, "Invalid parameter")
         elif modal_result == wx.ID_DELETE:
-            if 1: #try:
+            if 1:  # try:
                 fill = FillArea.FillArea()
-                fill.SetNetname(a.m_cbNet.GetStringSelection()) #a.m_Netname.GetValue())
+                fill.SetNetname(a.m_cbNet.GetStringSelection())  # a.m_Netname.GetValue())
                 if a.m_Debug.IsChecked():
                     fill.SetDebug()
                 fill.DeleteVias()
                 fill.Run()
-            else: #except Exception:
+            else:  # except Exception:
                 wx.MessageDialog(None, "Invalid parameter for delete")
         else:
             print("Cancel")
