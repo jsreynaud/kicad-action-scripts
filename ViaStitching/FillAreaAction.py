@@ -51,14 +51,20 @@ class FillAreaAction(pcbnew.ActionPlugin):
         
     def Run(self):
         a = FillAreaDialogEx(None)
-        a.m_SizeMM.SetValue("0.8")
+        #a.m_SizeMM.SetValue("0.8")
         a.m_StepMM.SetValue("2.54")
-        a.m_DrillMM.SetValue("0.3")
+        #a.m_DrillMM.SetValue("0.3")
         #a.m_Netname.SetValue("GND")
-        a.m_ClearanceMM.SetValue("0.2")
+        #a.m_ClearanceMM.SetValue("0.2")
         a.m_Star.SetValue(True)
         a.m_bitmapStitching.SetBitmap(wx.Bitmap( os.path.join(os.path.dirname(os.path.realpath(__file__)), "stitching-vias-help.png") ) )
         self.board = pcbnew.GetBoard()
+        self.boardDesignSettings = self.board.GetDesignSettings()
+        a.m_SizeMM.SetValue(str(pcbnew.ToMM(self.boardDesignSettings.GetCurrentViaSize())))
+        a.m_DrillMM.SetValue(str(pcbnew.ToMM(self.boardDesignSettings.GetCurrentViaDrill())))
+        a.m_ClearanceMM.SetValue(str(pcbnew.ToMM(self.boardDesignSettings.GetDefault().GetClearance())))
+        a.SetMinSize(a.GetSize())
+        
         PopulateNets("GND",a)
         modal_result = a.ShowModal()
         if modal_result == wx.ID_OK:
