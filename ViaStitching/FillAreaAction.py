@@ -71,7 +71,7 @@ class FillAreaAction(pcbnew.ActionPlugin):
         PopulateNets("GND", a)
         modal_result = a.ShowModal()
         if modal_result == wx.ID_OK:
-            wx.LogMessage('Via Stitching: Version 1.4')
+            wx.LogMessage('Via Stitching: Version 1.5')
             if 1:  # try:
                 fill = FillArea.FillArea()
                 fill.SetStepMM(float(a.m_StepMM.GetValue().replace(',', '.')))

@@ -2,14 +2,17 @@ from math import *
 import pcbnew
 from .CircularZoneDlg import CircularZoneDlg
 import wx
+import os
 
 
 class CircularZone(pcbnew.ActionPlugin):
 
     def defaults(self):
-        self.name = "Create a circular zone"
-        self.category = "Undefined"
-        self.description = ""
+        self.name = "Circular Zone\nKeepout Zone Generator"
+        self.category = "Modify PCB"
+        self.description = "Create a Circular Zone\nor a Circular Keepout Zone"
+        self.icon_file_name = os.path.join(os.path.dirname(__file__), "./round_keepout_area.png")
+        self.show_toolbar_button = True
 
     def build(self, center_x, center_y, radius, keepout, edge_count):
         sp = pcbnew.SHAPE_POLY_SET()
