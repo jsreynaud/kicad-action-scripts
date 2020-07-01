@@ -17,7 +17,7 @@ class CircularZone(pcbnew.ActionPlugin):
     def build(self, center_x, center_y, radius, keepout, edge_count):
         sp = pcbnew.SHAPE_POLY_SET()
         sp.NewOutline()
-        cnt = edge_count
+        cnt = int(edge_count)
         for i in range(cnt):
             x = int(center_x + radius * cos(i * 2 * pi / cnt))
             y = int(center_y + radius * sin(i * 2 * pi / cnt))
@@ -40,7 +40,7 @@ class CircularZone(pcbnew.ActionPlugin):
     def CheckInput(self, value, data):
         val = None
         try:
-            val = int(value)
+            val = float(value)
             if val < 1:
                 raise Exception("Invalid")
         except:
