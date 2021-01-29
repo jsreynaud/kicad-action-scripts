@@ -1,3 +1,9 @@
+# This branch is the plugin for development version of KiCad
+
+Please select the right branch according your KiCad version:
+ - master for development version of KiCad
+ - V5.1 for KiCad version 5.1.*
+
 # Some KiCad plugins in Python
 
 Thoses plugins must be copied inside KiCad's python plugins
