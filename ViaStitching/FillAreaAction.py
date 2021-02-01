@@ -65,7 +65,7 @@ class FillAreaAction(pcbnew.ActionPlugin):
         self.boardDesignSettings = self.board.GetDesignSettings()
         a.m_SizeMM.SetValue(str(pcbnew.ToMM(self.boardDesignSettings.GetCurrentViaSize())))
         a.m_DrillMM.SetValue(str(pcbnew.ToMM(self.boardDesignSettings.GetCurrentViaDrill())))
-        a.m_ClearanceMM.SetValue(str(pcbnew.ToMM(self.boardDesignSettings.GetDefault().GetClearance())))
+        a.m_ClearanceMM.SetValue(str(pcbnew.ToMM(self.boardDesignSettings.GetSmallestClearanceValue())))
         a.SetMinSize(a.GetSize())
 
         PopulateNets("GND", a)

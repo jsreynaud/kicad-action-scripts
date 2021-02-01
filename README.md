@@ -1,8 +1,18 @@
 # This branch is the plugin for development version of KiCad
 
+
 Please select the right branch according your KiCad version:
  - master for development version of KiCad
  - V5.1 for KiCad version 5.1.*
+
+# Know issues
+
+ - Unable to delete VIA (since The old method - used in 5.1 - don't
+   work anymore)
+ - Via are invisible after plugin run. Need to save and reopen file to
+   see them
+
+
 
 # Some KiCad plugins in Python
 
