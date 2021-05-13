@@ -27,6 +27,7 @@ import tempfile
 import shutil
 import os
 import random
+import math
 import pprint
 import wx
 
@@ -92,12 +93,108 @@ class GridFillStrategy(FillStrategy):
         points = []
         for x_i in range(x_steps):
             for y_i in range(y_steps):
-                x = int(x_i * self.centre_spacing + self.x_range[0] + 0.5)
-                y = int(y_i * self.centre_spacing + self.y_range[0] + 0.5)
+                x = int(round(x_i * self.centre_spacing + self.x_range[0]))
+                y = int(round(y_i * self.centre_spacing + self.y_range[0]))
                 if self.valid_predicate(x, y):
                     points.append((x, y))
         
         return points
+
+
+class BridsonFillStrategy(FillStrategy):
+    """
+    This fill stragegy implements Bridsons Poisson disc sampling algorithm to generate
+    randomly spaced points that are roughly uniformly spaced.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.k = 10
+
+        # Start with a grid we can use for localised searching. Cell spacing is centre_spacing / sqrt(2)
+        # such that no more than one point can end up in a cell.
+        self._cell_size = self.centre_spacing / math.sqrt(2)
+        self._x_steps = int((self.x_range[1] - self.x_range[0]) / self._cell_size)
+        self._y_steps = int((self.y_range[1] - self.y_range[0]) / self._cell_size)
+        self._checked = [[False] * self._x_steps for i in range(self._y_steps)]
+        self._points = [[None] * self._x_steps for i in range(self._y_steps)]
+
+
+    def generate_points(self):
+        active = []
+        for i in range(self._y_steps):
+            for j in range(self._x_steps):
+                if self._checked[i][j]:
+                    continue
+                else:
+                    # Generate up to k random points in this cell until one is valid.
+                    for _ in range(self.k):
+                        point = self._generate_random_point_in_cell(i, j)
+                        if self._is_valid(point):
+                            self._points[i][j] = point
+                            active.append(point)
+                            break
+                    self._checked[i][j] = True
+                
+                while active:
+                    # If we have active points, do the Poisson disc sampling
+                    base = active.pop()
+                    for _ in range(self.k):
+                        point = self._generate_random_point_in_disc(base)
+                        if self._is_valid(point):
+                            x_i, y_i = self._cell_index(point)
+                            self._points[y_i][x_i] = point
+                            active.append(point)
+                            self._checked[y_i][x_i] = True
+
+        
+        points = []
+        for row in self._points:
+            for point in row:
+                if point:
+                    points.append(point)
+        
+        return points
+    
+    def _cell_index(self, point):
+        x_i = math.floor((point[0] - self.x_range[0]) / self._cell_size)
+        y_i = math.floor((point[1] - self.y_range[0]) / self._cell_size)
+        return (x_i, y_i)
+    
+    def _is_valid(self, point):
+        # Get the cell index for this point
+        x_i, y_i = self._cell_index(point)
+
+        # Check we're in bounds
+        if x_i < 0 or x_i >= self._x_steps or y_i < 0 or y_i >= self._y_steps:
+            return False
+        
+        # Check there isn't already a point in this cell
+        if self._points[y_i][x_i]:
+            return False
+        
+        # Check surrounding points
+        for ox_i, oy_i in ((-1, -1), (-1, 0), (-1, 1), (0, 1), (1, 1), (1, 0), (1, -1), (0, -1)):
+            px_i = x_i + ox_i
+            py_i = y_i + oy_i
+            if px_i < 0 or px_i >= self._x_steps or py_i < 0 or py_i >= self._y_steps:
+                continue
+            nbr = self._points[py_i][px_i]
+            if nbr and math.sqrt((nbr[0] - point[0]) ** 2 + (nbr[1] - point[1]) ** 2) < self.centre_spacing:
+                return False
+        
+        # Finally, check the predicate
+        return self.valid_predicate(*point)
+    
+    def _generate_random_point_in_cell(self, i, j):
+        x = self.x_range[0] + (j + random.random()) * self._cell_size
+        y = self.y_range[0] + (i + random.random()) * self._cell_size
+        return (int(round(x)), int(round(y)))
+    
+    def _generate_random_point_in_disc(self, base):
+        r = math.sqrt(3 * random.random() + 1) * self.centre_spacing
+        th = random.uniform(0, math.pi)
+        return (int(round(base[0] + r * math.sin(th))), int(round(base[1] + r * math.cos(th))))
 
 
 class FillArea:
@@ -249,7 +346,7 @@ class FillArea:
         x_range = (bounds.GetLeft(), bounds.GetRight())
         y_range = (bounds.GetTop(), bounds.GetBottom())
         valid_predicate = lambda x, y: valid.Contains(VECTOR2I(x, y))
-        points = GridFillStrategy(x_range, y_range, valid_predicate, self.step).generate_points()
+        points = BridsonFillStrategy(x_range, y_range, valid_predicate, self.step).generate_points()
         for x, y in points:
             self.AddVia(wxPoint(x, y))
 
