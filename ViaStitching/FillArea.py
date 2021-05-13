@@ -139,8 +139,8 @@ class BridsonFillStrategy(FillStrategy):
                 while active:
                     # If we have active points, do the Poisson disc sampling
                     base = active.pop()
-                    for _ in range(self.k):
-                        point = self._generate_random_point_in_disc(base)
+                    random_points = self._generate_bridson_points(base)
+                    for point in random_points:
                         if self._is_valid(point):
                             x_i, y_i = self._cell_index(point)
                             self._points[y_i][x_i] = point
@@ -193,11 +193,22 @@ class BridsonFillStrategy(FillStrategy):
         y = self.y_range[0] + (i + random.random()) * self._cell_size
         return (int(round(x)), int(round(y)))
     
-    def _generate_random_point_in_disc(self, base):
-        r = math.sqrt(3 * random.random() + 1) * self.centre_spacing
-        th = random.uniform(0, math.pi)
-        return (int(round(base[0] + r * math.sin(th))), int(round(base[1] + r * math.cos(th))))
-
+    def _generate_bridson_points(self, base):
+        points = []
+        for j in range(self.k):
+            r = math.sqrt(3 * random.random() + 1) * self.centre_spacing
+            th = random.uniform(0, 2 * math.pi)
+            points.append((int(round(base[0] + r * math.sin(th))), int(round(base[1] + r * math.cos(th)))))
+        return points
+    
+    def _generate_roberts_points(self, base):
+        points = []
+        r = self.centre_spacing + 2
+        seed = random.uniform(0, 2 * math.pi)
+        for j in range(self.k):
+            th = 2 * math.pi * j / k + seed
+            points.append((int(round(base[0] + r * math.sin(th))), int(round(base[1] + r * math.cos(th)))))
+        return points
 
 class FillArea:
 
