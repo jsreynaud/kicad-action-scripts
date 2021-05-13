@@ -174,7 +174,7 @@ class BridsonFillStrategy(FillStrategy):
             return False
         
         # Check surrounding points
-        for ox_i, oy_i in ((-1, -1), (-1, 0), (-1, 1), (0, 1), (1, 1), (1, 0), (1, -1), (0, -1)):
+        for ox_i, oy_i in ((-1, -1), (-1, 0), (-1, 1), (0, 1), (1, 1), (1, 0), (1, -1), (0, -1), (-2, 0), (0, 2), (2, 0), (0, -2)):
             px_i = x_i + ox_i
             py_i = y_i + oy_i
             if px_i < 0 or px_i >= self._x_steps or py_i < 0 or py_i >= self._y_steps:
