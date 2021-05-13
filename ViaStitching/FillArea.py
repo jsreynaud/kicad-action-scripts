@@ -206,7 +206,7 @@ class BridsonFillStrategy(FillStrategy):
         r = self.centre_spacing + 2
         seed = random.uniform(0, 2 * math.pi)
         for j in range(self.k):
-            th = 2 * math.pi * j / k + seed
+            th = 2 * math.pi * j / self.k + seed
             points.append((int(round(base[0] + r * math.sin(th))), int(round(base[1] + r * math.cos(th)))))
         return points
 
