@@ -73,6 +73,33 @@ FillArea.FillArea().SetDebug().SetNetname("GND").SetStepMM(1.27).SetSizeMM(0.6).
 """
 
 
+class FillStrategy:
+    def __init__(self, x_range, y_range, valid_predicate, centre_spacing):
+        self.x_range = x_range
+        self.y_range = y_range
+        self.valid_predicate = valid_predicate
+        self.centre_spacing = centre_spacing
+    
+    def generate_points(self):
+        raise NotImplementedError
+
+
+class GridFillStrategy(FillStrategy):
+    def generate_points(self):
+        x_steps = int((self.x_range[1] - self.x_range[0]) / self.centre_spacing) + 1
+        y_steps = int((self.y_range[1] - self.y_range[0]) / self.centre_spacing) + 1
+
+        points = []
+        for x_i in range(x_steps):
+            for y_i in range(y_steps):
+                x = int(x_i * self.centre_spacing + self.x_range[0] + 0.5)
+                y = int(y_i * self.centre_spacing + self.y_range[0] + 0.5)
+                if self.valid_predicate(x, y):
+                    points.append((x, y))
+        
+        return points
+
+
 class FillArea:
 
     """
@@ -216,16 +243,15 @@ class FillArea:
         valid = self._get_valid_placement_area(top_areas)
         valid.BooleanIntersection(self._get_valid_placement_area(bot_areas), SHAPE_POLY_SET.PM_STRICTLY_SIMPLE)
         
+        
         # Place vias in a grid wherever we can.
-        lboard = self.pcb.ComputeBoundingBox(False)
-        origin = lboard.GetPosition()
-        x_limit = int((lboard.GetWidth() + self.step) / self.step) + 1
-        y_limit = int((lboard.GetHeight() + self.step) / self.step) + 1
-        for x_i in range(x_limit):
-            for y_i in range(y_limit):
-                point = origin + wxPoint(x_i * self.step, y_i * self.step)
-                if valid.Contains(VECTOR2I(point)):
-                    self.AddVia(point, 0, 0)
+        bounds = self.pcb.GetBoundingBox()
+        x_range = (bounds.GetLeft(), bounds.GetRight())
+        y_range = (bounds.GetTop(), bounds.GetBottom())
+        valid_predicate = lambda x, y: valid.Contains(VECTOR2I(x, y))
+        points = GridFillStrategy(x_range, y_range, valid_predicate, self.step).generate_points()
+        for x, y in points:
+            self.AddVia(wxPoint(x, y))
 
         # Reset target area nets to original and refill
         all_areas = [self.pcb.GetArea(i) for i in xrange(self.pcb.GetAreaCount())]
