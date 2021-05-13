@@ -196,7 +196,7 @@ class FillArea:
 
         # Validate that we don't have any top/bottom no-net layers already. If we do, we can't run this as we'd mess
         # them up when switching the net back.
-        if list(filter(lambda x: (x.GetNetname() == '' and (x.IsOnLayer(F_Cu) or x.IsOnLayer(B_Cu))), all_areas)):
+        if any(filter(lambda x: (x.GetNetname() == '' and (x.IsOnLayer(F_Cu) or x.IsOnLayer(B_Cu))), all_areas)):
             wxPrint("Sorry, we can't run via stitching if there are no-net zones on top/bottom copper layers.")
             return
         
