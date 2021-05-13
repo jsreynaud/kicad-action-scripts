@@ -219,11 +219,11 @@ class FillArea:
         """
 
         all_areas = [self.pcb.GetArea(i) for i in xrange(self.pcb.GetAreaCount())]
-        target_areas = filter(lambda x: (x.GetNetname() == self.netname and (x.IsOnLayer(F_Cu) or x.IsOnLayer(B_Cu))), all_areas)
+        target_areas = filter(lambda x: (x.GetNetname() == self.netname and (x.IsOnLayer(F_Cu) or x.IsOnLayer(B_Cu)) and not x.GetIsKeepout()), all_areas)
 
         # Validate that we don't have any top/bottom no-net layers already. If we do, we can't run this as we'd mess
         # them up when switching the net back.
-        if any(filter(lambda x: (x.GetNetname() == '' and (x.IsOnLayer(F_Cu) or x.IsOnLayer(B_Cu))), all_areas)):
+        if any(filter(lambda x: (x.GetNetname() == '' and (x.IsOnLayer(F_Cu) or x.IsOnLayer(B_Cu)) and not x.GetIsKeepout()), all_areas)):
             wxPrint("Sorry, we can't run via stitching if there are no-net zones on top/bottom copper layers.")
             return
         
@@ -235,8 +235,8 @@ class FillArea:
 
         # Search for areas on top/bottom layers
         all_areas = [self.pcb.GetArea(i) for i in xrange(self.pcb.GetAreaCount())]
-        top_areas = filter(lambda x: (x.GetNetname() == '' and x.IsOnLayer(F_Cu)), all_areas)
-        bot_areas = filter(lambda x: (x.GetNetname() == '' and x.IsOnLayer(B_Cu)), all_areas)
+        top_areas = filter(lambda x: (x.GetNetname() == '' and x.IsOnLayer(F_Cu) and not x.GetIsKeepout()), all_areas)
+        bot_areas = filter(lambda x: (x.GetNetname() == '' and x.IsOnLayer(B_Cu) and not x.GetIsKeepout()), all_areas)
         
         # Calculate where it'd be valid to put vias that hit both top/bottom layers in the
         # filled areas, without the annulus going outside of them.
@@ -255,7 +255,7 @@ class FillArea:
 
         # Reset target area nets to original and refill
         all_areas = [self.pcb.GetArea(i) for i in xrange(self.pcb.GetAreaCount())]
-        target_areas = filter(lambda x: (x.GetNetname() == '' and (x.IsOnLayer(F_Cu) or x.IsOnLayer(B_Cu))), all_areas)
+        target_areas = filter(lambda x: (x.GetNetname() == '' and (x.IsOnLayer(F_Cu) or x.IsOnLayer(B_Cu)) and not x.GetIsKeepout()), all_areas)
         for area in target_areas:
             area.SetNet(self.pcb.GetNetsByName()[self.netname])
         self.RefillBoardAreas()
