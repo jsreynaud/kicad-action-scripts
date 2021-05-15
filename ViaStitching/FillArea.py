@@ -101,6 +101,9 @@ class GridFillStrategy(FillStrategy):
         return points
 
 
+StarFillStrategy = GridFillStrategy
+
+
 class BridsonFillStrategy(FillStrategy):
     """
     This fill stragegy implements Bridsons Poisson disc sampling algorithm to generate
@@ -370,7 +373,13 @@ class FillArea:
         x_range = (bounds.GetLeft(), bounds.GetRight())
         y_range = (bounds.GetTop(), bounds.GetBottom())
         valid_predicate = lambda x, y: valid.Contains(VECTOR2I(x, y))
-        points = BridsonFillStrategy(x_range, y_range, valid_predicate, self.step).generate_points()
+        if self.random:
+            strategy = BridsonFillStrategy
+        elif self.star:
+            strategy = StarFillStrategy
+        else:
+            strategy = GridFillStrategy
+        points = strategy(x_range, y_range, valid_predicate, self.step).generate_points()
         for x, y in points:
             self.AddVia(wxPoint(x, y))
 
