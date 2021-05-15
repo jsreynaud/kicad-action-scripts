@@ -381,8 +381,9 @@ class FillArea:
             poly.Inflate(area.GetMinThickness() // 2, 36)
             valid.BooleanAdd(poly, SHAPE_POLY_SET.PM_STRICTLY_SIMPLE)
         
-        # Deflate by our via radius, and we have polygon encompassing where we can place via centers on the top.
-        valid.Inflate(-int(self.size) // 2, 36)
+        # Deflate by our via radius + clearance, and we have polygon encompassing where we can
+        # place via centers on the top.
+        valid.Inflate(-int(math.round(self.clearance)) - int(self.size) // 2, 36)
 
         return valid
 
