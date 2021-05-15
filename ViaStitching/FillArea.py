@@ -328,6 +328,17 @@ class FillArea:
         Launch the process
         """
 
+        if self.delete_vias:
+            target_tracks = filter(lambda x: (x.GetNetname() == self.netname), self.pcb.GetTracks())
+            target_tracks_cp = list(target_tracks)
+            l = len (target_tracks_cp)
+            for i in range(l):
+                if target_tracks_cp[i].Type() == PCB_VIA_T:
+                    if target_tracks_cp[i].GetTimeStamp() == 33:
+                        self.pcb.RemoveNative(target_tracks_cp[i])
+            self.RefillBoardAreas()
+            return
+
         all_areas = [self.pcb.GetArea(i) for i in xrange(self.pcb.GetAreaCount())]
         target_areas = filter(lambda x: (x.GetNetname() == self.netname and (x.IsOnLayer(F_Cu) or x.IsOnLayer(B_Cu)) and not x.GetIsKeepout()), all_areas)
 
