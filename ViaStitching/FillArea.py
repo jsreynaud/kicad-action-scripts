@@ -101,7 +101,22 @@ class GridFillStrategy(FillStrategy):
         return points
 
 
-StarFillStrategy = GridFillStrategy
+class StarFillStrategy(FillStrategy):
+    def generate_points(self):
+        # x spacing is 2 * spacing / sqrt(2), y spacing is spacing / sqrt(2)
+        spacing = self.centre_spacing / math.sqrt(2)
+        x_steps = int((self.x_range[1] - self.x_range[0]) / 2 * spacing) + 1
+        y_steps = int((self.y_range[1] - self.y_range[0]) / spacing) + 1
+
+        points = []
+        for x_i in range(x_steps):
+            for y_i in range(y_steps):
+                x = int(round(x_i * 2 * spacing + self.x_range[0] + (spacing if y_i % 2 else 0.0)))
+                y = int(round(y_i * spacing + self.y_range[0]))
+                if self.valid_predicate(x, y):
+                    points.append((x, y))
+        
+        return points
 
 
 class BridsonFillStrategy(FillStrategy):
@@ -403,7 +418,7 @@ class FillArea:
         
         # Deflate by our via radius + clearance, and we have polygon encompassing where we can
         # place via centers on the top.
-        valid.Inflate(-int(math.round(self.clearance)) - int(self.size) // 2, 36)
+        valid.Inflate(-int(round(self.clearance + self.size / 2)), 36)
 
         return valid
 
