@@ -105,7 +105,7 @@ class StarFillStrategy(FillStrategy):
     def generate_points(self):
         # x spacing is 2 * spacing / sqrt(2), y spacing is spacing / sqrt(2)
         spacing = self.centre_spacing / math.sqrt(2)
-        x_steps = int((self.x_range[1] - self.x_range[0]) / 2 * spacing) + 1
+        x_steps = int((self.x_range[1] - self.x_range[0]) / (2 * spacing)) + 1
         y_steps = int((self.y_range[1] - self.y_range[0]) / spacing) + 1
 
         points = []
