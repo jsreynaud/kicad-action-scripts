@@ -358,7 +358,13 @@ class FillArea:
             return
 
         all_areas = [self.pcb.GetArea(i) for i in xrange(self.pcb.GetAreaCount())]
-        target_areas = filter(lambda x: (x.GetNetname() == self.netname and (x.IsOnLayer(F_Cu) or x.IsOnLayer(B_Cu)) and not x.GetIsKeepout()), all_areas)
+        target_predicate = lambda x: (
+            x.GetNetname() == self.netname and
+            (x.IsOnLayer(F_Cu) or x.IsOnLayer(B_Cu)) and
+            not x.GetIsKeepout() and
+            (x.IsSelected() or not self.only_selected_area)
+        )
+        target_areas = filter(target_predicate, all_areas)
 
         # Validate that we don't have any top/bottom no-net layers already. If we do, we can't run this as we'd mess
         # them up when switching the net back.
