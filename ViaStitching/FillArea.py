@@ -356,21 +356,21 @@ class FillArea:
                         self.pcb.RemoveNative(target_tracks_cp[i])
             self.RefillBoardAreas()
             return
+        
+        allowed_areas = self._get_allowed_areas()
 
-        all_areas = [self.pcb.GetArea(i) for i in xrange(self.pcb.GetAreaCount())]
-        target_predicate = lambda x: (
-            x.GetNetname() == self.netname and
-            (x.IsOnLayer(F_Cu) or x.IsOnLayer(B_Cu)) and
-            not x.GetIsKeepout() and
-            (x.IsSelected() or not self.only_selected_area)
-        )
-        target_areas = filter(target_predicate, all_areas)
+        '''
+        # Get target areas for all layers
+        target_areas = self._get_areas_on_copper(self.netname, self.only_selected_area)
 
-        # Validate that we don't have any top/bottom no-net layers already. If we do, we can't run this as we'd mess
-        # them up when switching the net back.
-        if any(filter(lambda x: (x.GetNetname() == '' and (x.IsOnLayer(F_Cu) or x.IsOnLayer(B_Cu)) and not x.GetIsKeepout()), all_areas)):
-            wxPrint("Sorry, we can't run via stitching if there are no-net zones on top/bottom copper layers.")
-            return
+        # Set them to "No Net" and refill. That way we'll get a full fill
+        # including islands. Also set their timestamp to something to identify them later.
+        no_net = self.pcb.GetNetsByName()['']
+        for areas in target_areas.values():
+            for area in areas:
+                area.SetNet(no_net)
+                area.SetTimestamp(34)
+        self.RefillBoardAreas()
         
         # Change the net of the target areas to "No Net" and refill. That way we'll get a full fill
         # including islands
@@ -387,7 +387,6 @@ class FillArea:
         # filled areas, without the annulus going outside of them.
         valid = self._get_valid_placement_area(top_areas)
         valid.BooleanIntersection(self._get_valid_placement_area(bot_areas), SHAPE_POLY_SET.PM_STRICTLY_SIMPLE)
-        
         
         # Place vias in a grid wherever we can.
         bounds = self.pcb.GetBoundingBox()
@@ -410,6 +409,7 @@ class FillArea:
         for area in target_areas:
             area.SetNet(self.pcb.GetNetsByName()[self.netname])
         self.RefillBoardAreas()
+        '''
     
     def _get_valid_placement_area(self, areas):
         # Get some polygons for top/bottom with a buffer.
@@ -427,6 +427,36 @@ class FillArea:
         valid.Inflate(-int(round(self.clearance + self.size / 2)), 36)
 
         return valid
+    
+    def _get_allowed_areas(self):
+        bounds = self.pcb.GetBoundingBox()
+
+        for layer_id in self.pcb.GetEnabledLayers().CuStack():
+            area = self.pcb.AddArea(None, 0, layer_id, wxPoint(bounds.GetLeft(), bounds.GetTop()), ZONE_CONTAINER.NO_HATCH)
+            area.AppendCorner(wxPoint(bounds.GetRight(), bounds.GetTop()), -1)
+            area.AppendCorner(wxPoint(bounds.GetRight(), bounds.GetBottom()), -1)
+            area.AppendCorner(wxPoint(bounds.GetLeft(), bounds.GetBottom()), -1)
+            area.SetTimeStamp(34)
+        self.RefillBoardAreas()
+
+    
+    def _get_areas_on_copper(self, net_name=None, only_selected=False, timestamp=None):
+        predicate = lambda x: (
+            (net_name is None or x.GetNetname() == net_name) and
+            (timestamp is None or x.GetTimeStamp() == timestamp) and
+            x.IsOnCopperLayer() and
+            not x.GetIsKeepout() and
+            (x.IsSelected() or not only_selected)
+        )
+
+        copper_layer_ids = set(self.pcb.GetEnabledLayers().CuStack())
+
+        areas = {layer_id: [] for layer_id in copper_layer_ids}
+        for area in filter(predicate, (self.pcb.GetArea(i) for i in xrange(self.pcb.GetAreaCount()))):
+            areas[area.GetLayer()].append(area)
+        
+        return areas
+
 
 
 if __name__ == '__main__':
