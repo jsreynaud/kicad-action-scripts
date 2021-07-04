@@ -437,8 +437,28 @@ class FillArea:
             area.AppendCorner(wxPoint(bounds.GetRight(), bounds.GetBottom()), -1)
             area.AppendCorner(wxPoint(bounds.GetLeft(), bounds.GetBottom()), -1)
             area.SetTimeStamp(34)
+            area.SetMinThickness(FromMM(0.04))
+            area.SetThermalReliefCopperBridge(FromMM(0.5))
+            area.SetZoneClearance(0)
+            area.SetThermalReliefGap(0)
+            area.SetPadConnection(0)
+        
         self.RefillBoardAreas()
 
+        allowed = None
+        for areas in self._get_areas_on_copper('', False, 34).values():
+            for area in areas:
+                poly = SHAPE_POLY_SET(area.GetFilledPolysList(), True)
+                poly.Inflate(FromMM(0.02), 36)
+                if allowed is None:
+                    allowed = poly
+                else:
+                    allowed.BooleanIntersection(poly, SHAPE_POLY_SET.PM_STRICTLY_SIMPLE)
+                self.pcb.RemoveArea(None, area)
+        
+        allowed.Inflate(-int(round(self.clearance + self.size / 2)), 36)
+
+        return allowed
     
     def _get_areas_on_copper(self, net_name=None, only_selected=False, timestamp=None):
         predicate = lambda x: (
