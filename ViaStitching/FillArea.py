@@ -357,27 +357,29 @@ class FillArea:
             self.RefillBoardAreas()
             return
         
-        allowed_areas = self._get_allowed_areas()
-
-        '''
-        # Get target areas for all layers
+        # Get target areas for all layers, and move them off the PCB.
         target_areas = self._get_areas_on_copper(self.netname, self.only_selected_area)
+        move_vector = wxPoint(self.pcb.GetBoundingBox().GetWidth() * 2, self.pcb.GetBoundingBox().GetHeight() * 2)
+        for areas in target_areas.values():
+            for area in areas:
+                area.Move(move_vector)
 
-        # Set them to "No Net" and refill. That way we'll get a full fill
-        # including islands. Also set their timestamp to something to identify them later.
+        # Get the allowed area for via placement on all layers (which should include the target areas)
+        allowed_areas = self._get_allowed_areas()
+        
+        # Move target areas back, set them to "No Net" and refill. That way we'll get target placement
+        # areas which include islands.
+        target_areas = self._get_areas_on_copper(self.netname, self.only_selected_area)
+        move_vector = wxPoint(-move_vector.x, -move_vector.y)
         no_net = self.pcb.GetNetsByName()['']
         for areas in target_areas.values():
             for area in areas:
                 area.SetNet(no_net)
-                area.SetTimestamp(34)
+                area.Move(move_vector)
+                area.SetTimeStamp(34)
         self.RefillBoardAreas()
         
-        # Change the net of the target areas to "No Net" and refill. That way we'll get a full fill
-        # including islands
-        for area in target_areas:
-            area.SetNet(self.pcb.GetNetsByName()[''])
-        self.RefillBoardAreas()
-
+        '''
         # Search for areas on top/bottom layers
         all_areas = [self.pcb.GetArea(i) for i in xrange(self.pcb.GetAreaCount())]
         top_areas = filter(lambda x: (x.GetNetname() == '' and x.IsOnLayer(F_Cu) and not x.GetIsKeepout()), all_areas)
