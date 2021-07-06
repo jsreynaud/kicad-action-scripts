@@ -7,10 +7,13 @@ Please select the right branch according your KiCad version:
 
 # Know issues
 
+
+# Old issues
+
  - Unable to delete VIA (since The old method - used in 5.1 - don't
-   work anymore)
+   work anymore) => Fixed on master for KiCad 6
  - Via are invisible after plugin run. Need to save and reopen file to
-   see them
+   see them => Fixed by KiCad upstream
 
 
 
