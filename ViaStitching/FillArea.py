@@ -29,6 +29,8 @@ import os
 import random
 import pprint
 import wx
+from inspect import currentframe, getframeinfo
+import time
 
 
 def wxPrint(msg):
@@ -135,6 +137,8 @@ class FillArea:
 
         self.tmp_dir = None
         self.parent_area = None
+        self.pcb_group = None
+        self.target_net = None
 
     def SetFile(self, filename):
         self.filename = filename
@@ -234,24 +238,26 @@ STEP         = '-'
 
     def AddVia(self, position, x, y):
         if self.parent_area:
-            m = VIA(self.parent_area)
+            m = PCB_VIA(self.parent_area)
             m.SetPosition(position)
-            m.SetNet(self.pcb.FindNet(self.netname))
+            if self.target_net is None:
+                self.target_net = self.pcb.FindNet(self.netname)
+            m.SetNet(self.target_net)
             m.SetViaType(VIATYPE_THROUGH)
             m.SetDrill(int(self.drill))
             m.SetWidth(int(self.size))
             m.SetIsFree(True)
             # again possible to mark via as own since no timestamp_t binding kicad v5.1.4
             # m.SetParentGroup(self.parent_group)
-            #wx.LogMessage('adding vias')
+            # wx.LogMessage('adding vias')
             self.pcb.Add(m)
+            self.pcb_group.AddItem(m)
         else:
             wxPrint("\nUnable to find a valid parent area (zone)")
 
     def RefillBoardAreas(self):
         for i in range(self.pcb.GetAreaCount()):
             area = self.pcb.GetArea(i)
-            area.ClearFilledPolysList()
             area.UnFill()
         filler = ZONE_FILLER(self.pcb)
         filler.Fill(self.pcb.Zones())
@@ -294,7 +300,7 @@ STEP         = '-'
 
                         elif hit_test_zone:
                             # Check if the zone is higher priority than other zones of the target net in the same point
-                            #target_areas_on_same_layer = filter(lambda x: ((x.GetPriority() > area_priority) and (x.GetLayer() == area_layer) and (x.GetNetname().upper() == self.netname)), all_areas)
+                            # target_areas_on_same_layer = filter(lambda x: ((x.GetPriority() > area_priority) and (x.GetLayer() == area_layer) and (x.GetNetname().upper() == self.netname)), all_areas)
                             target_areas_on_same_layer = filter(lambda x: ((x.GetPriority() > area_priority) and (
                                 x.GetLayer() == area_layer) and (x.GetNetname() == self.netname)), all_areas)
                             for area_with_higher_priority in target_areas_on_same_layer:
@@ -345,28 +351,44 @@ STEP         = '-'
                         rectangle[x_pos][y_pos] = self.REASON_STEP
 
     def Run(self):
+
+        VIA_GROUP_NAME = "ViaStitching {}".format(self.netname)
+
+        if self.debug:
+            print("Enumerate groups")
+        for i in self.pcb.Groups():
+            if i.GetName() == VIA_GROUP_NAME:
+                if self.debug:
+                    print("Group {} Found !".format(VIA_GROUP_NAME))
+                self.pcb_group = i
+
+        if self.pcb_group is None:
+            self.pcb_group = PCB_GROUP(None)
+            self.pcb_group.SetName(VIA_GROUP_NAME)
+            self.pcb.Add(self.pcb_group)
+
         """
         Launch the process
         """
-        target_tracks = self.pcb.GetTracks()
-
         if self.delete_vias:
             # timestmap again available
-            #target_tracks = filter(lambda x: (x.GetNetname().upper() == self.netname), self.pcb.GetTracks())
-            target_tracks = filter(lambda x: (x.GetNetname() == self.netname), self.pcb.GetTracks())
-            target_tracks_cp = list(target_tracks)
-            l = len(target_tracks_cp)
-            for i in range(l):
-                if target_tracks_cp[i].Type() == PCB_VIA_T:
-                    # TODO: timestamp is no more available: looking for a better solution...
-                    # if target_tracks_cp[i].GetTimeStamp() == 33:
-                    #    self.pcb.RemoveNative(target_tracks_cp[i])
-                    None
-            self.RefillBoardAreas()
+            # target_tracks = filter(lambda x: (x.GetNetname().upper() == self.netname), self.pcb.GetTracks())
+            wx.MessageBox(
+                "To delete vias:\n - select one of the generated via to select the group of vias named {}\n - hit delete key\n - That's all !".format(VIA_GROUP_NAME), "Information")
             return                                          # no need to run the rest of logic
 
+        if self.debug:
+            print("%s: Line %u" % (time.time(), currentframe().f_lineno))
+        target_tracks = self.pcb.GetTracks()
+        if self.debug:
+            print("%s: Line %u" % (time.time(), currentframe().f_lineno))
+
         lboard = self.pcb.ComputeBoundingBox(False)
+        if self.debug:
+            print("%s: Line %u" % (time.time(), currentframe().f_lineno))
         origin = lboard.GetPosition()
+        if self.debug:
+            print("%s: Line %u" % (time.time(), currentframe().f_lineno))
 
         # Create an initial rectangle: all is set to "REASON_NO_SIGNAL"
         # get a margin to avoid out of range
@@ -378,13 +400,15 @@ STEP         = '-'
 
         all_pads = self.pcb.GetPads()
         all_tracks = self.pcb.GetTracks()
+        if self.debug:
+            print("%s: Line %u" % (time.time(), currentframe().f_lineno))
         try:
             all_drawings = filter(lambda x: x.GetClass() == 'PTEXT' and self.pcb.GetLayerID(
                 x.GetLayerName()) in (F_Cu, B_Cu), self.pcb.DrawingsList())
         except:
             all_drawings = filter(lambda x: x.GetClass() == 'PTEXT' and self.pcb.GetLayerID(
                 x.GetLayerName()) in (F_Cu, B_Cu), self.pcb.Drawings())
-            #wxPrint("exception on missing BOARD.DrawingsList")
+            # wxPrint("exception on missing BOARD.DrawingsList")
         all_areas = [self.pcb.GetArea(i) for i in xrange(self.pcb.GetAreaCount())]
         # target_areas    = filter(lambda x: (x.GetNetname().upper() == self.netname), all_areas)         # KeepOuts are filtered because they have no name
         # KeepOuts are filtered because they have no name
@@ -395,6 +419,8 @@ STEP         = '-'
 
         # Enum all target areas (Search possible positions for vias on the target net)
         for area in target_areas:
+            if self.debug:
+                print("%s: Line %u" % (time.time(), currentframe().f_lineno))
             wxPrint("Processing Target Area: %s, LayerName: %s..." % (area.GetNetname(), area.GetLayerName()))
             if self.parent_area is None:
                 self.parent_area = area
@@ -405,7 +431,12 @@ STEP         = '-'
 
             if (not self.only_selected_area) or (self.only_selected_area and is_selected_area):         # All areas or only the selected area
                 # Check every possible point in the virtual coordinate system
+                if self.debug:
+                    print("%s: Line %u" % (time.time(), currentframe().f_lineno))
                 for x in xrange(len(rectangle)):
+                    if x % 10 == 0:
+                        if self.debug:
+                            print("%s: Line %u (x=%s;%s)" % (time.time(), currentframe().f_lineno, x, len(rectangle)))
                     for y in xrange(len(rectangle[0])):
                         # No other "target area" found yet => go on with processing
                         if rectangle[x][y] == self.REASON_NO_SIGNAL:
@@ -416,16 +447,13 @@ STEP         = '-'
 
                             # Offset is half the size of the via plus the clearance of the via or the area
                             offset = max(self.clearance, area_clearance) + self.size / 2
-                            for dx in [-offset, offset]:
-                                # All 4 corners of the via are testet (upper, lower, left, right) but not the center
-                                for dy in [-offset, offset]:
-                                    point_to_test = wxPoint(current_x + dx, current_y + dy)
-                                    hit_test_area = area.HitTestFilledArea(
-                                        area.GetLayer(), point_to_test)             # Collides with a filled area
-                                    # Collides with an edge/corner
-                                    hit_test_edge = area.HitTestForEdge(point_to_test, area_clearance)
-                                    # test_result only remains true if the via is inside an area and not on an edge
-                                    test_result &= (hit_test_area and not hit_test_edge)
+                            point_to_test = wxPoint(int(current_x), int(current_y))
+                            hit_test_area = area.HitTestFilledArea(
+                                area.GetLayer(), point_to_test, int(offset))             # Collides with a filled area
+                            # Collides with an edge/corner
+                            hit_test_edge = area.HitTestForEdge(point_to_test, area_clearance)
+                            # test_result only remains true if the via is inside an area and not on an edge
+                            test_result &= (hit_test_area and not hit_test_edge)
 
                             if test_result:
                                 # Create a via object with information about the via and place it in the rectangle
@@ -438,6 +466,8 @@ STEP         = '-'
             self.PrintRect(rectangle)
 
         # Enum all vias
+        if self.debug:
+            print("%s: Line %u" % (time.time(), currentframe().f_lineno))
         wxPrint("Processing all vias of target area...")
         for via in via_list:
             reason = self.CheckViaInAllAreas(via, all_areas)
@@ -450,6 +480,8 @@ STEP         = '-'
 
         # Same job with all pads => all pads on all layers
         wxPrint("Processing all pads...")
+        if self.debug:
+            print("%s: Line %u" % (time.time(), currentframe().f_lineno))
         for pad in all_pads:
             local_offset = max(pad.GetLocalClearance(), self.clearance, max_target_area_clearance) + (self.size / 2)
             max_size = max(pad.GetSize().x, pad.GetSize().y)
@@ -477,6 +509,8 @@ STEP         = '-'
 
         # Same job with tracks => all tracks on all layers
         wxPrint("Processing all tracks...")
+        if self.debug:
+            print("%s: Line %u" % (time.time(), currentframe().f_lineno))
         for track in all_tracks:
             start_x = track.GetStart().x
             start_y = track.GetStart().y
@@ -526,6 +560,8 @@ STEP         = '-'
 
         # Same job with existing text
         wxPrint("Processing all existing drawings...")
+        if self.debug:
+            print("%s: Line %u" % (time.time(), currentframe().f_lineno))
         for draw in all_drawings:
             inter = float(self.clearance + self.size)
             bbox = draw.GetBoundingBox()
@@ -572,6 +608,8 @@ STEP         = '-'
             wxPrint("\nFinal result:")
             self.PrintRect(rectangle)
 
+        if self.debug:
+            print("%s: Line %u" % (time.time(), currentframe().f_lineno))
         self.RefillBoardAreas()
 
         if self.filename:

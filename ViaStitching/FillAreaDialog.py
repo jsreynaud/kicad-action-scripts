@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ###########################################################################
-## Python code generated with wxFormBuilder (version Oct 26 2018)
+## Python code generated with wxFormBuilder (version 3.9.0 Jul  3 2021)
 ## http://www.wxformbuilder.org/
 ##
 ## PLEASE DO *NOT* EDIT THIS FILE!
@@ -19,11 +19,7 @@ class FillAreaDialog ( wx.Dialog ):
 	def __init__( self, parent ):
 		wx.Dialog.__init__ ( self, parent, id = wx.ID_ANY, title = u"Fill Area parameters", pos = wx.DefaultPosition, size = wx.Size( 402,580 ), style = wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER )
 
-		import sys
-		if sys.version_info[0] == 2:
-			self.SetSizeHintsSz( wx.DefaultSize, wx.DefaultSize )
-		else:
-			self.SetSizeHints( wx.DefaultSize, wx.DefaultSize )
+		self.SetSizeHints( wx.DefaultSize, wx.DefaultSize )
 
 		bSizer3 = wx.BoxSizer( wx.VERTICAL )
 
@@ -149,7 +145,7 @@ class FillAreaDialog ( wx.Dialog ):
 		pass
 
 
-	# Virtual event handlers, overide them in your derived class
+	# Virtual event handlers, override them in your derived class
 	def onDeleteClick( self, event ):
 		event.Skip()
 
