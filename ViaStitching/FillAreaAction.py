@@ -59,7 +59,7 @@ class FillAreaAction(pcbnew.ActionPlugin):
         # a.m_DrillMM.SetValue("0.3")
         # a.m_Netname.SetValue("GND")
         # a.m_ClearanceMM.SetValue("0.2")
-        a.m_Star.SetValue(True)
+        # a.m_Star.SetValue(True)
         a.m_bitmapStitching.SetBitmap(wx.Bitmap(os.path.join(os.path.dirname(os.path.realpath(__file__)), "stitching-vias-help.png")))
         self.board = pcbnew.GetBoard()
         self.boardDesignSettings = self.board.GetDesignSettings()

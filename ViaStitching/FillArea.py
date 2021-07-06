@@ -393,10 +393,25 @@ STEP         = '-'
         # Create an initial rectangle: all is set to "REASON_NO_SIGNAL"
         # get a margin to avoid out of range
         l_clearance = self.clearance + self.size
+        if l_clearance < self.step:
+            l_clearance = self.step
+
         x_limit = int((lboard.GetWidth() + l_clearance) / l_clearance) + 1
         y_limit = int((lboard.GetHeight() + l_clearance) / l_clearance) + 1
-
+        if self.debug:
+            print("l_clearance : {}; step : {}; size: {}; clearance: {}; x/y_limit ({} {}),board size : {} {}".format(l_clearance,
+                                                                                                                      self.step,
+                                                                                                                      self.size,
+                                                                                                                      self.clearance,
+                                                                                                                      x_limit,
+                                                                                                                      y_limit,
+                                                                                                                      lboard.GetWidth(),
+                                                                                                                      lboard.GetHeight()))
         rectangle = [[self.REASON_NO_SIGNAL]*y_limit for i in xrange(x_limit)]
+
+        if self.debug:
+            print("\nInitial rectangle:")
+            self.PrintRect(rectangle)
 
         all_pads = self.pcb.GetPads()
         all_tracks = self.pcb.GetTracks()
@@ -446,14 +461,14 @@ STEP         = '-'
                             test_result = True                                                          # Start with true, if a check fails, it is set to false
 
                             # Offset is half the size of the via plus the clearance of the via or the area
-                            offset = max(self.clearance, area_clearance) + self.size / 2
+                            offset = 0  # Use an exact zone match
                             point_to_test = wxPoint(int(current_x), int(current_y))
                             hit_test_area = area.HitTestFilledArea(
                                 area.GetLayer(), point_to_test, int(offset))             # Collides with a filled area
                             # Collides with an edge/corner
-                            hit_test_edge = area.HitTestForEdge(point_to_test, area_clearance)
+                            hit_test_edge = area.HitTestForEdge(point_to_test, int(max(area_clearance, offset)))
                             # test_result only remains true if the via is inside an area and not on an edge
-                            test_result &= (hit_test_area and not hit_test_edge)
+                            test_result = (hit_test_area and not hit_test_edge)
 
                             if test_result:
                                 # Create a via object with information about the via and place it in the rectangle
@@ -462,7 +477,7 @@ STEP         = '-'
                                 via_list.append(via_obj)
 
         if self.debug:
-            wxPrint("\nPost target areas:")
+            print("\nPost target areas:")
             self.PrintRect(rectangle)
 
         # Enum all vias
@@ -475,7 +490,7 @@ STEP         = '-'
                 rectangle[via.X][via.Y] = reason
 
         if self.debug:
-            wxPrint("\nPost areas:")
+            print("\nPost areas:")
             self.PrintRect(rectangle)
 
         # Same job with all pads => all pads on all layers
@@ -504,7 +519,7 @@ STEP         = '-'
                     except:
                         wxPrint("exception on Processing all pads...")
         if self.debug:
-            wxPrint("\nPost pads:")
+            print("\nPost pads:")
             self.PrintRect(rectangle)
 
         # Same job with tracks => all tracks on all layers
@@ -555,7 +570,7 @@ STEP         = '-'
                         wxPrint("exception on Processing all tracks...")
 
         if self.debug:
-            wxPrint("\nPost tracks:")
+            print("\nPost tracks:")
             self.PrintRect(rectangle)
 
         # Same job with existing text
@@ -563,7 +578,7 @@ STEP         = '-'
         if self.debug:
             print("%s: Line %u" % (time.time(), currentframe().f_lineno))
         for draw in all_drawings:
-            inter = float(self.clearance + self.size)
+            inter = float(self.clearance + self.size) / 2
             bbox = draw.GetBoundingBox()
 
             start_x = int(floor(((bbox.GetPosition().x - inter) - origin.x) / l_clearance))
@@ -572,17 +587,16 @@ STEP         = '-'
             start_y = int(floor(((bbox.GetPosition().y - inter) - origin.y) / l_clearance))
             stop_y = int(ceil(((bbox.GetPosition().y + (bbox.GetSize().y + inter)) - origin.y) / l_clearance))
 
-            for x in range(start_x, stop_x + 1):
-                for y in range(start_y, stop_y + 1):
+            for x in range(start_x, stop_x):
+                for y in range(start_y, stop_y):
                     rectangle[x][y] = self.REASON_DRAWING
 
         if self.debug:
-            wxPrint("Post Drawnings:")
+            print("Post Drawnings:")
             self.PrintRect(rectangle)
 
-        wxPrint("Remove vias to guarantee step size...")
         clear_distance = 0
-        if self.step != 0.0:
+        if self.step != 0.0 and self.star:
             # How much "via steps" should be removed around a via (round up)
             clear_distance = int((self.step+l_clearance) / l_clearance)
 
@@ -605,7 +619,7 @@ STEP         = '-'
                     via_placed += 1
 
         if self.debug:
-            wxPrint("\nFinal result:")
+            print("\nFinal result:")
             self.PrintRect(rectangle)
 
         if self.debug:
