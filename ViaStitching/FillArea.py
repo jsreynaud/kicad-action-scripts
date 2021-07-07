@@ -347,14 +347,7 @@ class FillArea:
         """
 
         if self.delete_vias:
-            target_tracks = filter(lambda x: (x.GetNetname() == self.netname), self.pcb.GetTracks())
-            target_tracks_cp = list(target_tracks)
-            l = len (target_tracks_cp)
-            for i in range(l):
-                if target_tracks_cp[i].Type() == PCB_VIA_T:
-                    if target_tracks_cp[i].GetTimeStamp() == 33:
-                        self.pcb.RemoveNative(target_tracks_cp[i])
-            self.RefillBoardAreas()
+            self._delete_vias()
             return
         
         # Get target areas for all layers, and move them off the PCB.
@@ -364,8 +357,8 @@ class FillArea:
             for area in areas:
                 area.Move(move_vector)
 
-        # Get the allowed area for via placement on all layers (which should include the target areas)
-        allowed_areas = self._get_allowed_areas()
+        # Get the allowed polygons for via placement on all layers (which should include the target polygons)
+        allowed_polys = self._get_allowed_polys()
         
         # Move target areas back, set them to "No Net" and refill. That way we'll get target placement
         # areas which include islands.
@@ -378,7 +371,19 @@ class FillArea:
                 area.Move(move_vector)
                 area.SetTimeStamp(34)
         self.RefillBoardAreas()
-        
+
+        # Get target polygons for each layer
+        target_areas = self._get_areas_on_copper('', self.only_selected_area, 34)
+        target_polys = {}
+        for layer_id, areas in target_areas.items():
+            target_poly = SHAPE_POLY_SET()
+            for area in areas:
+                area_poly = SHAPE_POLY_SET(area.GetFilledPolysList(), True)
+                area_poly.Inflate(area.GetMinThickness() // 2, 36)
+                target_poly.BooleanAdd(poly, SHAPE_POLY_SET.PM_STRICTLY_SIMPLE)
+            target_poly.Inflate(-int(round(self.clearance + self.size / 2)), 36)
+            target_polys[layer_id] = target_poly
+
         '''
         # Search for areas on top/bottom layers
         all_areas = [self.pcb.GetArea(i) for i in xrange(self.pcb.GetAreaCount())]
@@ -413,6 +418,16 @@ class FillArea:
         self.RefillBoardAreas()
         '''
     
+    def _delete_vias(self):
+        target_tracks = filter(lambda x: (x.GetNetname() == self.netname), self.pcb.GetTracks())
+        target_tracks_cp = list(target_tracks)
+        l = len (target_tracks_cp)
+        for i in range(l):
+            if target_tracks_cp[i].Type() == PCB_VIA_T:
+                if target_tracks_cp[i].GetTimeStamp() == 33:
+                    self.pcb.RemoveNative(target_tracks_cp[i])
+        self.RefillBoardAreas()
+    
     def _get_valid_placement_area(self, areas):
         # Get some polygons for top/bottom with a buffer.
         valid = SHAPE_POLY_SET()
@@ -430,7 +445,7 @@ class FillArea:
 
         return valid
     
-    def _get_allowed_areas(self):
+    def _get_allowed_polys(self):
         bounds = self.pcb.GetBoundingBox()
 
         for layer_id in self.pcb.GetEnabledLayers().CuStack():
@@ -439,8 +454,8 @@ class FillArea:
             area.AppendCorner(wxPoint(bounds.GetRight(), bounds.GetBottom()), -1)
             area.AppendCorner(wxPoint(bounds.GetLeft(), bounds.GetBottom()), -1)
             area.SetTimeStamp(34)
-            area.SetMinThickness(FromMM(0.04))
-            area.SetThermalReliefCopperBridge(FromMM(0.5))
+            area.SetMinThickness(FromMM(0.4))
+            area.SetThermalReliefCopperBridge(FromMM(0.4))
             area.SetZoneClearance(0)
             area.SetThermalReliefGap(0)
             area.SetPadConnection(0)
@@ -451,7 +466,7 @@ class FillArea:
         for areas in self._get_areas_on_copper('', False, 34).values():
             for area in areas:
                 poly = SHAPE_POLY_SET(area.GetFilledPolysList(), True)
-                poly.Inflate(FromMM(0.02), 36)
+                poly.Inflate(FromMM(0.2), 36)
                 if allowed is None:
                     allowed = poly
                 else:
