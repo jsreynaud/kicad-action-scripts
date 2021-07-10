@@ -30,6 +30,7 @@ import random
 import math
 import pprint
 import wx
+import itertools
 
 
 def wxPrint(msg):
@@ -384,17 +385,16 @@ class FillArea:
             target_poly.Inflate(-int(round(self.clearance + self.size / 2)), 36)
             target_polys[layer_id] = target_poly
 
-        '''
-        # Search for areas on top/bottom layers
-        all_areas = [self.pcb.GetArea(i) for i in xrange(self.pcb.GetAreaCount())]
-        top_areas = filter(lambda x: (x.GetNetname() == '' and x.IsOnLayer(F_Cu) and not x.GetIsKeepout()), all_areas)
-        bot_areas = filter(lambda x: (x.GetNetname() == '' and x.IsOnLayer(B_Cu) and not x.GetIsKeepout()), all_areas)
-        
-        # Calculate where it'd be valid to put vias that hit both top/bottom layers in the
-        # filled areas, without the annulus going outside of them.
-        valid = self._get_valid_placement_area(top_areas)
-        valid.BooleanIntersection(self._get_valid_placement_area(bot_areas), SHAPE_POLY_SET.PM_STRICTLY_SIMPLE)
-        
+        # Do the boolean operations to calculate a valid area that is:
+        # - has target areas on at least two layers
+        # - intersects with the allowed poly (which is an intersection of all allowed placement areas on all layers)
+        valid = SHAPE_POLY_SET()
+        for a, b in itertools.combinations(target_polys.values(), 2):
+            intersection_of_two = SHAPE_POLY_SET(a, True)
+            intersection_of_two.BooleanIntersection(b, SHAPE_POLY_SET.PM_STRICTLY_SIMPLE)
+            valid.BooleanAdd(intersection_of_two)
+        valid.BooleanIntersection(allowed_polys)
+
         # Place vias in a grid wherever we can.
         bounds = self.pcb.GetBoundingBox()
         x_range = (bounds.GetLeft(), bounds.GetRight())
@@ -411,12 +411,12 @@ class FillArea:
             self.AddVia(wxPoint(x, y))
 
         # Reset target area nets to original and refill
-        all_areas = [self.pcb.GetArea(i) for i in xrange(self.pcb.GetAreaCount())]
-        target_areas = filter(lambda x: (x.GetNetname() == '' and (x.IsOnLayer(F_Cu) or x.IsOnLayer(B_Cu)) and not x.GetIsKeepout()), all_areas)
-        for area in target_areas:
-            area.SetNet(self.pcb.GetNetsByName()[self.netname])
+        target_areas = self._get_areas_on_copper('', self.only_selected_area, 34)
+        original_net = self.pcb.GetNetsByName()[self.netname]
+        for areas in target_areas.values():
+            for area in areas:
+                area.SetNet(original_net)
         self.RefillBoardAreas()
-        '''
     
     def _delete_vias(self):
         target_tracks = filter(lambda x: (x.GetNetname() == self.netname), self.pcb.GetTracks())
