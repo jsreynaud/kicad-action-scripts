@@ -487,7 +487,8 @@ class FillArea:
         for areas in self._get_areas_on_copper('', False, 34).values():
             for area in areas:
                 poly = SHAPE_POLY_SET(area.GetFilledPolysList(), True)
-                poly.Inflate(FromMM(0.2) - int(round(self.clearance + self.size / 2)), 36)
+                poly.Inflate(FromMM(0.2), 36)
+                poly.Inflate(-int(round(self.clearance + self.size / 2)), 36)
                 if allowed is None:
                     allowed = poly
                 else:
