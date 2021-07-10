@@ -351,14 +351,25 @@ class FillArea:
             self._delete_vias()
             return
         
-        # Get target areas for all layers, and move them off the PCB.
+        # Bump up the priority of all areas. We do this so future areas created by us always have a lower
+        # priority than real areas.
+        all_areas = self._get_areas_on_copper()
+        for areas in all_areas.values():
+            for area in areas:
+                area.SetPriority(area.GetPriority() + 1)
+        
+        # Move the target areas off the PCB temporarily.
         target_areas = self._get_areas_on_copper(self.netname, self.only_selected_area)
         move_vector = wxPoint(self.pcb.GetBoundingBox().GetWidth() * 2, self.pcb.GetBoundingBox().GetHeight() * 2)
         for areas in target_areas.values():
             for area in areas:
                 area.Move(move_vector)
 
-        # Get the allowed polygons for via placement on all layers (which should include the target polygons)
+        # While the target areas are off the board, get the allowed polygons for via placement. We do this
+        # by adding a "No Net" fill area on each layer the size of the whole board. We contract the polygons
+        # on each layer by the via radius plus clearance then intersect the polygons on all layers together.
+        #
+        # The temporary fill areas on each layer are removed afterwards.
         allowed_polys = self._get_allowed_polys()
         
         # Move target areas back, set them to "No Net" and refill. That way we'll get target placement
@@ -373,7 +384,8 @@ class FillArea:
                 area.SetTimeStamp(34)
         self.RefillBoardAreas()
 
-        # Get target polygons for each layer
+        # Get target polygons for each layer. This is done in much the same way as getting the allowed
+        # polygons above, but we keep the target polygons on each layer and don't intersect them.
         target_areas = self._get_areas_on_copper('', self.only_selected_area, 34)
         target_polys = {}
         for layer_id, areas in target_areas.items():
@@ -381,19 +393,19 @@ class FillArea:
             for area in areas:
                 area_poly = SHAPE_POLY_SET(area.GetFilledPolysList(), True)
                 area_poly.Inflate(area.GetMinThickness() // 2, 36)
-                target_poly.BooleanAdd(poly, SHAPE_POLY_SET.PM_STRICTLY_SIMPLE)
+                target_poly.BooleanAdd(area_poly, SHAPE_POLY_SET.PM_STRICTLY_SIMPLE)
             target_poly.Inflate(-int(round(self.clearance + self.size / 2)), 36)
             target_polys[layer_id] = target_poly
 
-        # Do the boolean operations to calculate a valid area that is:
+        # Do the boolean operations to calculate the area in which to place stitching vias. That area:
         # - has target areas on at least two layers
         # - intersects with the allowed poly (which is an intersection of all allowed placement areas on all layers)
         valid = SHAPE_POLY_SET()
         for a, b in itertools.combinations(target_polys.values(), 2):
             intersection_of_two = SHAPE_POLY_SET(a, True)
             intersection_of_two.BooleanIntersection(b, SHAPE_POLY_SET.PM_STRICTLY_SIMPLE)
-            valid.BooleanAdd(intersection_of_two)
-        valid.BooleanIntersection(allowed_polys)
+            valid.BooleanAdd(intersection_of_two, SHAPE_POLY_SET.PM_STRICTLY_SIMPLE)
+        valid.BooleanIntersection(allowed_polys, SHAPE_POLY_SET.PM_STRICTLY_SIMPLE)
 
         # Place vias in a grid wherever we can.
         bounds = self.pcb.GetBoundingBox()
@@ -410,12 +422,20 @@ class FillArea:
         for x, y in points:
             self.AddVia(wxPoint(x, y))
 
-        # Reset target area nets to original and refill
+        # Reset target area nets to original
         target_areas = self._get_areas_on_copper('', self.only_selected_area, 34)
         original_net = self.pcb.GetNetsByName()[self.netname]
         for areas in target_areas.values():
             for area in areas:
                 area.SetNet(original_net)
+        
+        # Return priorities of each area back to how they were.
+        all_areas = self._get_areas_on_copper()
+        for areas in all_areas.values():
+            for area in areas:
+                area.SetPriority(area.GetPriority() - 1)
+
+        # Do a final refill of areas
         self.RefillBoardAreas()
     
     def _delete_vias(self):
@@ -458,6 +478,7 @@ class FillArea:
             area.SetThermalReliefCopperBridge(FromMM(0.4))
             area.SetZoneClearance(0)
             area.SetThermalReliefGap(0)
+            area.SetPriority(0)
             area.SetPadConnection(0)
         
         self.RefillBoardAreas()
@@ -466,14 +487,12 @@ class FillArea:
         for areas in self._get_areas_on_copper('', False, 34).values():
             for area in areas:
                 poly = SHAPE_POLY_SET(area.GetFilledPolysList(), True)
-                poly.Inflate(FromMM(0.2), 36)
+                poly.Inflate(FromMM(0.2) - int(round(self.clearance + self.size / 2)), 36)
                 if allowed is None:
                     allowed = poly
                 else:
                     allowed.BooleanIntersection(poly, SHAPE_POLY_SET.PM_STRICTLY_SIMPLE)
                 self.pcb.RemoveArea(None, area)
-        
-        allowed.Inflate(-int(round(self.clearance + self.size / 2)), 36)
 
         return allowed
     
