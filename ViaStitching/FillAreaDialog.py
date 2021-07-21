@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ###########################################################################
-## Python code generated with wxFormBuilder (version Oct 26 2018)
+## Python code generated with wxFormBuilder (version 3.9.0 Jul 13 2021)
 ## http://www.wxformbuilder.org/
 ##
 ## PLEASE DO *NOT* EDIT THIS FILE!
@@ -17,13 +17,9 @@ import wx.xrc
 class FillAreaDialog ( wx.Dialog ):
 
 	def __init__( self, parent ):
-		wx.Dialog.__init__ ( self, parent, id = wx.ID_ANY, title = u"Fill Area parameters", pos = wx.DefaultPosition, size = wx.Size( 402,580 ), style = wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER )
+		wx.Dialog.__init__ ( self, parent, id = wx.ID_ANY, title = u"Fill Area parameters", pos = wx.DefaultPosition, size = wx.Size( 405,680 ), style = wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER )
 
-		import sys
-		if sys.version_info[0] == 2:
-			self.SetSizeHintsSz( wx.DefaultSize, wx.DefaultSize )
-		else:
-			self.SetSizeHints( wx.DefaultSize, wx.DefaultSize )
+		self.SetSizeHints( wx.DefaultSize, wx.DefaultSize )
 
 		bSizer3 = wx.BoxSizer( wx.VERTICAL )
 
@@ -79,6 +75,33 @@ class FillAreaDialog ( wx.Dialog ):
 		m_cbNetChoices = []
 		self.m_cbNet = wx.ComboBox( self, wx.ID_ANY, u"GND", wx.DefaultPosition, wx.DefaultSize, m_cbNetChoices, wx.CB_READONLY )
 		fgSizer1.Add( self.m_cbNet, 1, wx.ALL|wx.EXPAND, 5 )
+
+		self.m_staticText16 = wx.StaticText( self, wx.ID_ANY, u"Type", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.m_staticText16.Wrap( -1 )
+
+		fgSizer1.Add( self.m_staticText16, 0, wx.ALL, 5 )
+
+		m_cbViaTypeChoices = []
+		self.m_cbViaType = wx.ComboBox( self, wx.ID_ANY, u"Combo!", wx.DefaultPosition, wx.DefaultSize, m_cbViaTypeChoices, wx.CB_READONLY )
+		fgSizer1.Add( self.m_cbViaType, 0, wx.ALL|wx.EXPAND, 5 )
+
+		self.m_staticText14 = wx.StaticText( self, wx.ID_ANY, u"Layer (From)", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.m_staticText14.Wrap( -1 )
+
+		fgSizer1.Add( self.m_staticText14, 0, wx.ALL, 5 )
+
+		m_cbLayerFromChoices = []
+		self.m_cbLayerFrom = wx.ComboBox( self, wx.ID_ANY, u"Combo!", wx.DefaultPosition, wx.DefaultSize, m_cbLayerFromChoices, wx.CB_READONLY )
+		fgSizer1.Add( self.m_cbLayerFrom, 0, wx.ALL|wx.EXPAND, 5 )
+
+		self.m_staticText15 = wx.StaticText( self, wx.ID_ANY, u"Layer (To)", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.m_staticText15.Wrap( -1 )
+
+		fgSizer1.Add( self.m_staticText15, 0, wx.ALL, 5 )
+
+		m_cbLayerToChoices = []
+		self.m_cbLayerTo = wx.ComboBox( self, wx.ID_ANY, u"Combo!", wx.DefaultPosition, wx.DefaultSize, m_cbLayerToChoices, wx.CB_READONLY )
+		fgSizer1.Add( self.m_cbLayerTo, 0, wx.ALL|wx.EXPAND, 5 )
 
 		self.m_staticText7 = wx.StaticText( self, wx.ID_ANY, u"Debug mode", wx.DefaultPosition, wx.DefaultSize, 0 )
 		self.m_staticText7.Wrap( -1 )
@@ -143,13 +166,17 @@ class FillAreaDialog ( wx.Dialog ):
 		self.Centre( wx.BOTH )
 
 		# Connect Events
+		self.m_cbViaType.Bind( wx.EVT_COMBOBOX, self.onComboBoxViaType )
 		self.m_button3_delete.Bind( wx.EVT_BUTTON, self.onDeleteClick )
 
 	def __del__( self ):
 		pass
 
 
-	# Virtual event handlers, overide them in your derived class
+	# Virtual event handlers, override them in your derived class
+	def onComboBoxViaType( self, event ):
+		event.Skip()
+
 	def onDeleteClick( self, event ):
 		event.Skip()
 

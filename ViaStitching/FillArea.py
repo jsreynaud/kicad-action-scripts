@@ -134,6 +134,9 @@ class FillArea:
             self.SetNetname("GND")
 
         self.tmp_dir = None
+        self.viatype = None
+        self.layerfrom = -1
+        self.layerto = -1
 
     def SetFile(self, filename):
         self.filename = filename
@@ -189,6 +192,18 @@ class FillArea:
         self.clearance = float(FromMM(s))
         return self
 
+    def SetViaType(self, vtype):
+        self.viatype = vtype
+
+    def SetLayers(self, layerfrom, layerto):
+        self.layerfrom = layerfrom
+        self.layerto = layerto
+        if self.layerfrom > self.layerto:
+            tmp = self.layerfrom
+            self.layerfrom = self.layerto
+            self.layerto = tmp
+        self.area_range = list(range(self.layerfrom, self.layerto + 1))
+
     def GetReasonSymbol(self, reason):
         if isinstance(reason, ViaObject):
             return "X"
@@ -235,7 +250,8 @@ STEP         = '-'
         m = VIA(self.pcb)
         m.SetPosition(position)
         m.SetNet(self.pcb.FindNet(self.netname))
-        m.SetViaType(VIA_THROUGH)
+        m.SetViaType(self.viatype)
+        m.SetLayerPair(self.layerfrom, self.layerto)
         m.SetDrill(int(self.drill))
         m.SetWidth(int(self.size))
         # again possible to mark via as own since no timestamp_t binding kicad v5.1.4
@@ -264,7 +280,7 @@ STEP         = '-'
             is_target_net = (area.GetNetname() == self.netname)  # (area.GetNetname().upper() == self.netname)
             # wx.LogMessage(area.GetNetname()) #wx.LogMessage(area.GetNetname().upper())
 
-            if (not is_target_net):                                                         # Only process areas that are not in the target net
+            if (not is_target_net) and (area_layer in self.area_range): # Only process areas that are not in the target net and in crossing by via
                 # Offset is half the size of the via plus the clearance of the via or the area
                 offset = max(self.clearance, area_clearance) + self.size / 2
                 for dx in [-offset, offset]:
