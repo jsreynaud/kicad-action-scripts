@@ -34,13 +34,54 @@ def PopulateNets(anet, dlg):
     if anet != None:
         index = dlg.m_cbNet.FindString(anet)
         dlg.m_cbNet.Select(index)
-#
 
+def PopulateViaType(avia, dlg):
+    # VIA_THROUGH, VIA_MICROVIA, VIA_BLIND_BURIED
+    dlg.m_cbViaType.Append("Through")
+    dlg.m_cbViaType.Append("Micro")
+    dlg.m_cbViaType.Append("Blind/buried")
+    if avia != None:
+        index = dlg.m_cbViaType.FindString(avia)
+        dlg.m_cbViaType.Select(index)
+
+def PopulateLayers(alayfrom, alayto, dlg):
+    board = pcbnew.GetBoard()
+
+    for i in board.GetEnabledLayers().Seq():
+        if i <= pcbnew.PCBNEW_LAYER_ID_START + 31:
+            layername = board.GetLayerName(i)
+            dlg.m_cbLayerFrom.Append(layername)
+            dlg.m_cbLayerTo.Append(layername)
+
+    if alayfrom != None:
+        index = dlg.m_cbLayerFrom.FindString(alayfrom)
+        dlg.m_cbLayerFrom.Select(index)
+
+    if alayto != None:
+        index = dlg.m_cbLayerTo.FindString(alayto)
+        dlg.m_cbLayerTo.Select(index)
 
 class FillAreaDialogEx(FillAreaDialog.FillAreaDialog):
 
     def onDeleteClick(self, event):
         return self.EndModal(wx.ID_DELETE)
+
+    def updateComboLayers(self):
+        selection = self.m_cbViaType.GetStringSelection()
+        if selection in ['Through', 'Micro']:
+            # select F.Cu layer
+            self.m_cbLayerFrom.SetSelection(0)
+            # select B.Cu layer
+            bCuIndex = self.m_cbLayerTo.FindString("B.Cu")
+            self.m_cbLayerTo.SetSelection(bCuIndex)
+            self.m_cbLayerFrom.Disable()
+            self.m_cbLayerTo.Disable()
+        else:
+            self.m_cbLayerFrom.Enable()
+            self.m_cbLayerTo.Enable()
+
+    def onComboBoxViaType(self, event ):
+        self.updateComboLayers()
 
 
 class FillAreaAction(pcbnew.ActionPlugin):
@@ -53,6 +94,7 @@ class FillAreaAction(pcbnew.ActionPlugin):
         self.show_toolbar_button = True
 
     def Run(self):
+        board = pcbnew.GetBoard()
         a = FillAreaDialogEx(None)
         # a.m_SizeMM.SetValue("0.8")
         a.m_StepMM.SetValue("2.54")
@@ -69,6 +111,10 @@ class FillAreaAction(pcbnew.ActionPlugin):
         a.SetMinSize(a.GetSize())
 
         PopulateNets("GND", a)
+        PopulateViaType("Through", a)
+        PopulateLayers("F.Cu", "B.Cu", a)
+        a.updateComboLayers()
+
         modal_result = a.ShowModal()
         if modal_result == wx.ID_OK:
             wx.LogMessage('Via Stitching: Version 1.5')
@@ -79,6 +125,25 @@ class FillAreaAction(pcbnew.ActionPlugin):
                 fill.SetDrillMM(float(a.m_DrillMM.GetValue().replace(',', '.')))
                 fill.SetClearanceMM(float(a.m_ClearanceMM.GetValue().replace(',', '.')))
                 # fill.SetNetname(a.m_Netname.GetValue())
+                stype = a.m_cbViaType.GetStringSelection()
+                if stype == "Through":
+                    fill.SetViaType(pcbnew.VIA_THROUGH)
+                if stype == "Micro":
+                    fill.SetViaType(pcbnew.VIA_MICROVIA)
+                if stype == "Blind/buried":
+                    fill.SetViaType(pcbnew.VIA_BLIND_BURIED)
+
+                fromLayerName = a.m_cbLayerFrom.GetStringSelection()
+                toLayerName = a.m_cbLayerTo.GetStringSelection()
+                fromLayerID = pcbnew.PCBNEW_LAYER_ID_START
+                toLayerID = pcbnew.PCBNEW_LAYER_ID_START+32
+                for i in range(pcbnew.PCBNEW_LAYER_ID_START, pcbnew.PCBNEW_LAYER_ID_START+32):
+                    if fromLayerName == board.GetLayerName(i):
+                        fromLayerID = i
+                    if toLayerName == board.GetLayerName(i):
+                        toLayerID = i
+                fill.SetLayers(fromLayerID, toLayerID)
+
                 netname = a.m_cbNet.GetStringSelection()
                 fill.SetNetname(netname)
                 if a.m_Debug.IsChecked():
