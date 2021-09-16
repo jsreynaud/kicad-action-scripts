@@ -41,7 +41,7 @@ class CircularZone(pcbnew.ActionPlugin):
         val = None
         try:
             val = float(value)
-            if val < 1:
+            if val == 0:
                 raise Exception("Invalid")
         except:
             self.Warn(
