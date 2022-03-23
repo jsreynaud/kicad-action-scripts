@@ -3,6 +3,7 @@
 
 Please select the right branch according your KiCad version:
  - master for development version of KiCad
+ - master for KiCad V6 (until python API changes in dev version of KiCad)
  - V5.1 for KiCad version 5.1.*
 
 # Know issues
@@ -10,8 +11,9 @@ Please select the right branch according your KiCad version:
 
 # Old issues
 
- - Unable to delete VIA (since The old method - used in 5.1 - don't
-   work anymore) => Fixed on master for KiCad 6
+ - Unable to delete VIA automaticaly (since The old method - used in 5.1 - don't
+   work anymore) => Please manually remove the group created that own
+   all vias
  - Via are invisible after plugin run. Need to save and reopen file to
    see them => Fixed by KiCad upstream
 
