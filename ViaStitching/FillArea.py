@@ -39,7 +39,7 @@ def wxPrint(msg):
 
 #
 if sys.version[0] == '2':  # maui
-    xrange
+    None
 else:
     xrange = range
 
