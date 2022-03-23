@@ -516,6 +516,17 @@ STEP         = '-'
                             size_rect = wxSize(2 * local_offset, 2 * local_offset)
                             if pad.HitTest(EDA_RECT(start_rect, size_rect), False):
                                 rectangle[x][y] = self.REASON_PAD
+                            else:
+                                # Hit test doesn't handle large pads. This following should fix that.
+                                m = PCB_VIA(self.parent_area)
+                                m.SetPosition(wxPoint(origin.x + (l_clearance * x), origin.y + (l_clearance * y)))
+                                m.SetNet(self.target_net)
+                                m.SetViaType(VIATYPE_THROUGH)
+                                m.SetDrill(int(self.drill))
+                                m.SetWidth(int(self.size))
+                                if pad.GetEffectivePolygon().Collide(m.GetEffectiveShape()):
+                                    rectangle[x][y] = self.REASON_PAD
+
                     except:
                         wxPrint("exception on Processing all pads...")
         if self.debug:
