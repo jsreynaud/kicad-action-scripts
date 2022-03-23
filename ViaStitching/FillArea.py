@@ -362,11 +362,6 @@ STEP         = '-'
                     print("Group {} Found !".format(VIA_GROUP_NAME))
                 self.pcb_group = i
 
-        if self.pcb_group is None:
-            self.pcb_group = PCB_GROUP(None)
-            self.pcb_group.SetName(VIA_GROUP_NAME)
-            self.pcb.Add(self.pcb_group)
-
         """
         Launch the process
         """
@@ -376,6 +371,11 @@ STEP         = '-'
             wx.MessageBox(
                 "To delete vias:\n - select one of the generated via to select the group of vias named {}\n - hit delete key\n - That's all !".format(VIA_GROUP_NAME), "Information")
             return                                          # no need to run the rest of logic
+
+        if self.pcb_group is None:
+            self.pcb_group = PCB_GROUP(None)
+            self.pcb_group.SetName(VIA_GROUP_NAME)
+            self.pcb.Add(self.pcb_group)
 
         if self.debug:
             print("%s: Line %u" % (time.time(), currentframe().f_lineno))

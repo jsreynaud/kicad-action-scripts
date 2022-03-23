@@ -137,7 +137,7 @@ class FillAreaDialog (wx.Dialog):
         self.Centre(wx.BOTH)
 
         # Connect Events
-        #self.m_button3_delete.Bind( wx.EVT_BUTTON, self.onDeleteClick )
+        self.m_button3_delete.Bind(wx.EVT_BUTTON, self.onDeleteClick)
 
     def __del__(self):
         pass
