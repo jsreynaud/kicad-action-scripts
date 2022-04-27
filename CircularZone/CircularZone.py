@@ -24,10 +24,16 @@ class CircularZone(pcbnew.ActionPlugin):
             sp.Append(x, y)
         # sp.OutlineCount()
         sp.thisown = 0
-        zone = pcbnew.ZONE_CONTAINER(self.pcb)
+        zone = pcbnew.ZONE(self.pcb)
         zone.SetOutline(sp)
         zone.SetLayer(pcbnew.F_Cu)
-        zone.SetIsKeepout(keepout)
+        zone.SetIsRuleArea(keepout)
+        zone.SetDoNotAllowCopperPour(keepout)
+        zone.SetDoNotAllowFootprints(keepout)
+        zone.SetDoNotAllowPads(keepout)
+        zone.SetDoNotAllowTracks(keepout)
+        zone.SetDoNotAllowVias(keepout)
+
         zone.thisown = 0
         self.pcb.Add(zone)
 
@@ -55,7 +61,7 @@ class CircularZone(pcbnew.ActionPlugin):
         x = 0
         y = 0
         reference = None
-        for module in self.pcb.GetModules():
+        for module in self.pcb.Footprints():
             if module.IsSelected():
                 x = module.GetPosition().x
                 y = module.GetPosition().y
