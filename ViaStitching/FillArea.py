@@ -429,6 +429,12 @@ STEP         = '-'
         # KeepOuts are filtered because they have no name
         target_areas = filter(lambda x: (x.GetNetname() == self.netname), all_areas)
 
+        # Get the board outline and size with
+        board_edge = SHAPE_POLY_SET()
+        self.pcb.GetBoardPolygonOutlines(board_edge)
+        b_clearance = max(self.pcb.GetDesignSettings().m_CopperEdgeClearance, self.clearance) + self.size
+        board_edge.Deflate(int(b_clearance), int(12),  SHAPE_POLY_SET.ROUND_ALL_CORNERS)
+
         via_list = []       # Create a list of existing vias => faster than scanning through the whole rectangle
         max_target_area_clearance = 0
 
@@ -469,6 +475,8 @@ STEP         = '-'
                             hit_test_edge = area.HitTestForEdge(point_to_test, int(max(area_clearance, offset)))
                             # test_result only remains true if the via is inside an area and not on an edge
                             test_result = (hit_test_area and not hit_test_edge)
+
+                            test_result = (test_result and board_edge.Collide(VECTOR2I(point_to_test))) # check if inside board outline
 
                             if test_result:
                                 # Create a via object with information about the via and place it in the rectangle
