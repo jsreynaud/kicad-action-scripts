@@ -81,7 +81,7 @@ class FillAreaDialog ( wx.Dialog ):
 
 		fgSizer1.Add( self.m_staticText42, 0, wx.ALL, 5 )
 
-		m_cbFillTypeChoices = [ u"Concentric", u"Outline", u"Rectangular", u"Star" ]
+		m_cbFillTypeChoices = [ u"Concentric", u"Outline", u"Outline (No Holes)", u"Rectangular", u"Star" ]
 		self.m_cbFillType = wx.ComboBox( self, wx.ID_ANY, u"Concentric", wx.DefaultPosition, wx.DefaultSize, m_cbFillTypeChoices, wx.CB_READONLY )
 		fgSizer1.Add( self.m_cbFillType, 0, wx.ALL, 5 )
 

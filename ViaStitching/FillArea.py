@@ -109,6 +109,7 @@ class FillArea:
     FILL_TYPE_STAR = "Star"
     FILL_TYPE_CONCENTRIC = "Concentric"
     FILL_TYPE_OUTLINE = "Outline"
+    FILL_TYPE_OUTLINE_NO_HOLES = "Outline (No Holes)"
 
     def __init__(self, filename=None):
         self.filename = None
@@ -435,9 +436,10 @@ STEP         = '-'
                 outline = poly_set.Outline(i)
                 via_placed += self.AddViasAlongOutline(outline, all_vias, off)
 
-                for k in range(0, poly_set.HoleCount(i)):
-                    hole = poly_set.Hole(i,k)
-                    via_placed += self.AddViasAlongOutline(hole, all_vias, off)
+                if self.fill_type != self.FILL_TYPE_OUTLINE_NO_HOLES:
+                    for k in range(0, poly_set.HoleCount(i)):
+                        hole = poly_set.Hole(i,k)
+                        via_placed += self.AddViasAlongOutline(hole, all_vias, off)
 
             # Size the polygons to place the next ring
             if self.fill_type == self.FILL_TYPE_CONCENTRIC:
@@ -488,7 +490,7 @@ STEP         = '-'
             self.pcb_group.SetName(VIA_GROUP_NAME)
             self.pcb.Add(self.pcb_group)
 
-        if self.fill_type==self.FILL_TYPE_OUTLINE or self.fill_type==self.FILL_TYPE_CONCENTRIC:
+        if self.fill_type==self.FILL_TYPE_CONCENTRIC or self.fill_type==self.FILL_TYPE_OUTLINE or self.fill_type==self.FILL_TYPE_OUTLINE_NO_HOLES:
             self.ConcentricFillVias()
             if self.filename:
                 self.pcb.Save(self.filename)
