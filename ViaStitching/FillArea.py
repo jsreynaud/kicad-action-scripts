@@ -454,6 +454,10 @@ STEP         = '-'
 
         return via_placed
 
+
+    """
+    Main function which does the via placement or deletion
+    """
     def Run(self):
 
         VIA_GROUP_NAME = "ViaStitching {}".format(self.netname)
@@ -470,10 +474,13 @@ STEP         = '-'
         Launch the process
         """
         if self.delete_vias:
-            # timestmap again available
-            # target_tracks = filter(lambda x: (x.GetNetname().upper() == self.netname), self.pcb.GetTracks())
-            wx.MessageBox(
-                "To delete vias:\n - select one of the generated via to select the group of vias named {}\n - hit delete key\n - That's all !".format(VIA_GROUP_NAME), "Information")
+
+            if self.pcb_group is not None:
+                all_vias = [track for track in self.pcb.GetTracks() if (track.GetClass()=="PCB_VIA" and track.GetNetname()==self.netname)]
+
+                for via in all_vias:
+                    if via.GetParentGroup() is not None and via.GetParentGroup().GetName() == VIA_GROUP_NAME:
+                        via.DeleteStructure()
             return                                          # no need to run the rest of logic
 
         if self.pcb_group is None:
