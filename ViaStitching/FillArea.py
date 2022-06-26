@@ -365,28 +365,29 @@ STEP         = '-'
     def CheckViaDistance(self, p, via, outline):
         p2 = VECTOR2I(via.GetPosition())
 
-        dist = 2*self.clearance + self.size/2 + via.GetWidth()/2
+        dist = self.clearance + self.size/2 + via.GetWidth()/2
         
         # If via in same outline, then apply bigger space
         if outline.Collide(p2):
-            dist = max(dist, self.step*0.6)
+            dist = int(max(dist, self.step*0.6))
 
-        return (p-p2).EuclideanNorm() > dist
+        return (p-p2).EuclideanNorm() >= dist
 
     """
     Add via along outline (SHAPE_LINE_CHAIN), starting at offset (fraction between 0.0 and 1.0)
     Avoid placing vias to close to via present in all_vias
     """
-    def AddViasAlongOutline(self, outline, all_vias, offset=0):
+    def AddViasAlongOutline(self, outline, outline_parent, all_vias, offset=0):
         via_placed = 0
+        step = max(self.step, self.size+self.clearance)
         len = int(outline.Length())
-        steps = len // self.step
+        steps = len // step
         steps = 1 if steps == 0 else steps
         stepsize = int(len//steps)
         for l in range (int(stepsize*offset), len, stepsize):
             p = outline.PointAlong(l)
 
-            if all( self.CheckViaDistance(p, via, outline) for via in all_vias):
+            if all(self.CheckViaDistance(p, via, outline_parent) for via in all_vias):
                 via = self.AddVia(p.getWxPoint(), 0, 0)
                 all_vias.append(via)
                 via_placed+=1
@@ -434,16 +435,16 @@ STEP         = '-'
         while poly_set.OutlineCount() > 0:
             for i in range(0, poly_set.OutlineCount()):
                 outline = poly_set.Outline(i)
-                via_placed += self.AddViasAlongOutline(outline, all_vias, off)
+                via_placed += self.AddViasAlongOutline(outline, outline, all_vias, off)
 
                 if self.fill_type != self.FILL_TYPE_OUTLINE_NO_HOLES:
                     for k in range(0, poly_set.HoleCount(i)):
                         hole = poly_set.Hole(i,k)
-                        via_placed += self.AddViasAlongOutline(hole, all_vias, off)
+                        via_placed += self.AddViasAlongOutline(hole, outline, all_vias, off)
 
             # Size the polygons to place the next ring
             if self.fill_type == self.FILL_TYPE_CONCENTRIC:
-                poly_set.Inflate(int(-self.step),12,SHAPE_POLY_SET.CHAMFER_ALL_CORNERS)
+                poly_set.Inflate(int(-max(self.step, self.size+self.clearance)),12,SHAPE_POLY_SET.CHAMFER_ALL_CORNERS)
                 off = 0.5 if off == 0 else 0
             else:
                 poly_set = SHAPE_POLY_SET()
