@@ -26,9 +26,9 @@ import os
 
 
 def PopulateNets(anet, dlg):
-    nets = pcbnew.GetBoard().GetNetsByName()
-    for netname, net in nets.items():
-        netname = net.GetNetname()
+    zones = pcbnew.GetBoard().Zones()
+    for zone in zones:
+        netname = zone.GetNetname()
         if netname is not None and netname != "":
             dlg.m_cbNet.Append(netname)
     if anet is not None:
