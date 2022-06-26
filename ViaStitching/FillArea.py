@@ -105,6 +105,11 @@ class FillArea:
     REASON_DRAWING = 6
     REASON_STEP = 7
 
+    FILL_TYPE_RECTANGULAR = "Rectangular"
+    FILL_TYPE_STAR = "Star"
+    FILL_TYPE_CONCENTRIC = "Concentric"
+    FILL_TYPE_OUTLINE = "Outline"
+
     def __init__(self, filename=None):
         self.filename = None
         self.clearance = 0
@@ -131,7 +136,7 @@ class FillArea:
         self.netname = None
         self.debug = False
         self.random = False
-        self.star = False
+        self.fill_type = self.FILL_TYPE_RECTANGULAR
         if self.netname is None:
             self.SetNetname("GND")
 
@@ -155,8 +160,8 @@ class FillArea:
         self.random = r
         return self
 
-    def SetStar(self):
-        self.star = True
+    def SetType(self, type):
+        self.fill_type = type
         return self
 
     def SetPCB(self, pcb):
@@ -252,6 +257,7 @@ STEP         = '-'
             # wx.LogMessage('adding vias')
             self.pcb.Add(m)
             self.pcb_group.AddItem(m)
+            return m
         else:
             wxPrint("\nUnable to find a valid parent area (zone)")
 
@@ -343,12 +349,110 @@ STEP         = '-'
         '''
         for x_pos in range(x-distance, x+distance+1):
             if (x_pos >= 0) and (x_pos < len(rectangle)):
-                distance_y = distance-abs(x-x_pos) if self.star else distance       # Star or Standard shape
+                # Star or Standard shape
+                distance_y = distance-abs(x-x_pos) if self.fill_type==self.FILL_TYPE_STAR else distance
                 for y_pos in range(y-distance_y, y+distance_y+1):
                     if (y_pos >= 0) and (y_pos < len(rectangle[0])):
                         if (x_pos == x) and (y_pos == y):
                             continue
                         rectangle[x_pos][y_pos] = self.REASON_STEP
+
+
+    """
+    Check if vias would not overlap and if in same outline then apply at minimum 60% of self.step
+    """
+    def CheckViaDistance(self, p, via, outline):
+        p2 = VECTOR2I(via.GetPosition())
+
+        dist = 2*self.clearance + self.size/2 + via.GetWidth()/2
+        
+        # If via in same outline, then apply bigger space
+        if outline.Collide(p2):
+            dist = max(dist, self.step*0.6)
+
+        return (p-p2).EuclideanNorm() > dist
+
+    """
+    Add via along outline (SHAPE_LINE_CHAIN), starting at offset (fraction between 0.0 and 1.0)
+    Avoid placing vias to close to via present in all_vias
+    """
+    def AddViasAlongOutline(self, outline, all_vias, offset=0):
+        via_placed = 0
+        len = int(outline.Length())
+        steps = len // self.step
+        steps = 1 if steps == 0 else steps
+        stepsize = int(len//steps)
+        for l in range (int(stepsize*offset), len, stepsize):
+            p = outline.PointAlong(l)
+
+            if all( self.CheckViaDistance(p, via, outline) for via in all_vias):
+                via = self.AddVia(p.getWxPoint(), 0, 0)
+                all_vias.append(via)
+                via_placed+=1
+        return via_placed
+
+    def ConcentricFillVias(self): 
+        wxPrint("Refill all zones")
+        self.RefillBoardAreas()
+
+        wxPrint("Calculate placement areas")
+
+        zones = [zone for zone in self.pcb.Zones() if zone.GetNetname() == self.netname]
+        self.parent_area = zones[0]
+
+        # Create set of polygons where fill zones overlap on all layers
+        poly_set = None
+        for layer_id in self.pcb.GetEnabledLayers().CuStack():
+            poly_set_layer = SHAPE_POLY_SET()
+            for zone in zones:
+                if zone.IsOnLayer(layer_id):
+                    if poly_set is not None or not self.only_selected_area or zone.IsSelected():
+                        poly_set_layer.Append(zone.RawPolysList(layer_id))
+
+            if poly_set is None:
+                poly_set = poly_set_layer
+            else:
+                poly_set.BooleanIntersection(poly_set_layer,SHAPE_POLY_SET.PM_FAST)
+                poly_set.Simplify(SHAPE_POLY_SET.PM_FAST)
+
+            if poly_set.OutlineCount()==0:
+                wxPrint("No areas to fill")
+                return
+
+
+        # Size the polygons so the vias fit inside
+        poly_set.Inflate(int(-(1*self.clearance + 0.5*self.size)),12,SHAPE_POLY_SET.CHAMFER_ALL_CORNERS)
+
+        wxPrint("Generating concentric via placement")
+        # Get all vias from the selected net
+        all_vias = [track for track in self.pcb.GetTracks() if (track.GetClass()=="PCB_VIA" and track.GetNetname()==self.netname)]
+
+        off = 0
+        via_placed = 0
+        # Place vias along all outlines and holes
+        while poly_set.OutlineCount() > 0:
+            for i in range(0, poly_set.OutlineCount()):
+                outline = poly_set.Outline(i)
+                via_placed += self.AddViasAlongOutline(outline, all_vias, off)
+
+                for k in range(0, poly_set.HoleCount(i)):
+                    hole = poly_set.Hole(i,k)
+                    via_placed += self.AddViasAlongOutline(hole, all_vias, off)
+
+            # Size the polygons to place the next ring
+            if self.fill_type == self.FILL_TYPE_CONCENTRIC:
+                poly_set.Inflate(int(-self.step),12,SHAPE_POLY_SET.CHAMFER_ALL_CORNERS)
+                off = 0.5 if off == 0 else 0
+            else:
+                poly_set = SHAPE_POLY_SET()
+
+        wxPrint("Refill all zones")
+        self.RefillBoardAreas()
+
+        msg = "{:d} vias placed\n".format(via_placed)
+        wxPrint(msg+"Done!")
+
+        return via_placed
 
     def Run(self):
 
@@ -376,6 +480,13 @@ STEP         = '-'
             self.pcb_group = PCB_GROUP(None)
             self.pcb_group.SetName(VIA_GROUP_NAME)
             self.pcb.Add(self.pcb_group)
+
+        if self.fill_type==self.FILL_TYPE_OUTLINE or self.fill_type==self.FILL_TYPE_CONCENTRIC:
+            self.ConcentricFillVias()
+            if self.filename:
+                self.pcb.Save(self.filename)
+
+            return
 
         if self.debug:
             print("%s: Line %u" % (time.time(), currentframe().f_lineno))
@@ -615,7 +726,7 @@ STEP         = '-'
             self.PrintRect(rectangle)
 
         clear_distance = 0
-        if self.step != 0.0 and self.star:
+        if self.step != 0.0 and self.fill_type == self.FILL_TYPE_STAR:
             # How much "via steps" should be removed around a via (round up)
             clear_distance = int((self.step+l_clearance) / l_clearance)
 

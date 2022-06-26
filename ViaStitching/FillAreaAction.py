@@ -26,11 +26,9 @@ import os
 
 
 def PopulateNets(anet, dlg):
-    zones = pcbnew.GetBoard().Zones()
-    for zone in zones:
-        netname = zone.GetNetname()
-        if netname is not None and netname != "":
-            dlg.m_cbNet.Append(netname)
+    netnames = list(set([zone.GetNetname() for zone in pcbnew.GetBoard().Zones()]))
+    netnames.sort()
+    dlg.m_cbNet.Set(netnames)
     if anet is not None:
         index = dlg.m_cbNet.FindString(anet)
         dlg.m_cbNet.Select(index)
@@ -59,7 +57,6 @@ class FillAreaAction(pcbnew.ActionPlugin):
         # a.m_DrillMM.SetValue("0.3")
         # a.m_Netname.SetValue("GND")
         # a.m_ClearanceMM.SetValue("0.2")
-        # a.m_Star.SetValue(True)
         a.m_bitmapStitching.SetBitmap(wx.Bitmap(os.path.join(os.path.dirname(os.path.realpath(__file__)), "stitching-vias-help.png")))
         self.board = pcbnew.GetBoard()
         self.boardDesignSettings = self.board.GetDesignSettings()
@@ -84,8 +81,7 @@ class FillAreaAction(pcbnew.ActionPlugin):
                 if a.m_Debug.IsChecked():
                     fill.SetDebug()
                 fill.SetRandom(a.m_Random.IsChecked())
-                if a.m_Star.IsChecked():
-                    fill.SetStar()
+                fill.SetType(a.m_cbFillType.GetStringSelection())
                 if a.m_only_selected.IsChecked():
                     fill.OnlyOnSelectedArea()
                 fill.Run()
