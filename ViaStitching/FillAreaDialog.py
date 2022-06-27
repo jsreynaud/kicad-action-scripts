@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ###########################################################################
-## Python code generated with wxFormBuilder (version 3.10.1-0-g8feb16b3)
+## Python code generated with wxFormBuilder (version 3.10.1)
 ## http://www.wxformbuilder.org/
 ##
 ## PLEASE DO *NOT* EDIT THIS FILE!
@@ -76,13 +76,14 @@ class FillAreaDialog ( wx.Dialog ):
 		self.m_cbNet = wx.ComboBox( self, wx.ID_ANY, u"GND", wx.DefaultPosition, wx.DefaultSize, m_cbNetChoices, wx.CB_READONLY )
 		fgSizer1.Add( self.m_cbNet, 1, wx.ALL|wx.EXPAND, 5 )
 
-		self.m_staticText42 = wx.StaticText( self, wx.ID_ANY, u"Star Pattern", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.m_staticText42 = wx.StaticText( self, wx.ID_ANY, u"Pattern", wx.DefaultPosition, wx.DefaultSize, 0 )
 		self.m_staticText42.Wrap( -1 )
 
 		fgSizer1.Add( self.m_staticText42, 0, wx.ALL, 5 )
 
 		m_cbFillTypeChoices = [ u"Concentric", u"Outline", u"Outline (No Holes)", u"Rectangular", u"Star" ]
-		self.m_cbFillType = wx.ComboBox( self, wx.ID_ANY, u"Concentric", wx.DefaultPosition, wx.DefaultSize, m_cbFillTypeChoices, wx.CB_READONLY )
+		self.m_cbFillType = wx.ComboBox( self, wx.ID_ANY, u"Rectangular", wx.DefaultPosition, wx.DefaultSize, m_cbFillTypeChoices, wx.CB_READONLY )
+		self.m_cbFillType.SetSelection( 3 )
 		fgSizer1.Add( self.m_cbFillType, 0, wx.ALL, 5 )
 
 		self.m_staticText8 = wx.StaticText( self, wx.ID_ANY, u"Random it", wx.DefaultPosition, wx.DefaultSize, 0 )
@@ -149,3 +150,5 @@ class FillAreaDialog ( wx.Dialog ):
 	# Virtual event handlers, override them in your derived class
 	def onDeleteClick( self, event ):
 		event.Skip()
+
+
