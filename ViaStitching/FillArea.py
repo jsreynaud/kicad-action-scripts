@@ -278,11 +278,13 @@ STEP         = '-'
             area_layer = area.GetLayer()
             area_clearance = area.GetLocalClearance()
             area_priority = area.GetPriority()
-            is_keepout_area = False  # area.GetIsKeepout()
+            is_rules_area = area.GetIsRuleArea()
+            is_rule_exclude_via_area = area.GetIsRuleArea() and area.GetDoNotAllowVias()
             is_target_net = (area.GetNetname() == self.netname)  # (area.GetNetname().upper() == self.netname)
             # wx.LogMessage(area.GetNetname()) #wx.LogMessage(area.GetNetname().upper())
 
-            if (not is_target_net):                                                         # Only process areas that are not in the target net
+            if (not is_target_net or is_rule_exclude_via_area):  # Only process areas that are not in the target net or is a rule area that could exlude vias
+                # print("Process...")
                 # Offset is half the size of the via plus the clearance of the via or the area
                 offset = max(self.clearance, area_clearance) + self.size / 2
                 for dx in [-offset, offset]:
@@ -293,19 +295,21 @@ STEP         = '-'
                         hit_test_area = area.HitTestFilledArea(area.GetLayer(), point_to_test)             # Collides with a filled area
                         hit_test_edge = area.HitTestForEdge(point_to_test, 1)              # Collides with an edge/corner
                         try:
-                            hit_test_zone = area.HitTestInsideZone(point_to_test)         # Is inside a zone (e.g. KeepOut)
+                            hit_test_zone = area.HitTestInsideZone(point_to_test)         # Is inside a zone (e.g. KeepOut/Rules)
                         except:
                             hit_test_zone = False
                             wxPrint('exception: missing HitTestInsideZone: To Be Fixed')
-                            # hit_test_zone   = area.HitTest(point_to_test)              # Is inside a zone (e.g. KeepOut) kicad nightly 5.99
-                        if is_keepout_area and (hit_test_area or hit_test_edge or hit_test_zone):
-                            return self.REASON_KEEPOUT                                      # Collides with keepout
+                            # hit_test_zone   = area.HitTest(point_to_test)
 
-                        elif (hit_test_area or hit_test_edge):
-                            # Collides with another signal (e.g. on another layer)
+                        # Is inside a zone (e.g. KeepOut/Rules with via exlusion) kicad
+                        if is_rule_exclude_via_area and (hit_test_area or hit_test_edge or hit_test_zone):
+                            return self.REASON_KEEPOUT                                      # Collides with keepout/rules
+
+                        elif (hit_test_area or hit_test_edge) and not is_rules_area:
+                            # Collides with another signal (e.g. on another layer) but not a rule zone
                             return self.REASON_OTHER_SIGNAL
 
-                        elif hit_test_zone:
+                        elif hit_test_zone and not is_rules_area:
                             # Check if the zone is higher priority than other zones of the target net in the same point
                             # target_areas_on_same_layer = filter(lambda x: ((x.GetPriority() > area_priority) and (x.GetLayer() == area_layer) and (x.GetNetname().upper() == self.netname)), all_areas)
                             target_areas_on_same_layer = filter(lambda x: ((x.GetPriority() > area_priority) and (
