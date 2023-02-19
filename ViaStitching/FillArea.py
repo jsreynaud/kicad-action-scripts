@@ -653,12 +653,12 @@ STEP         = '-'
                             start_rect = wxPoint(origin.x + (l_clearance * x) - local_offset,
                                                  origin.y + (l_clearance * y) - local_offset)
                             size_rect = wxSize(2 * local_offset, 2 * local_offset)
-                            if pad.HitTest(EDA_RECT(start_rect, size_rect), False):
+                            if pad.HitTest(BOX2I(VECTOR2I(start_rect), VECTOR2I(size_rect)), False):
                                 rectangle[x][y] = self.REASON_PAD
                             else:
                                 # Hit test doesn't handle large pads. This following should fix that.
                                 m = PCB_VIA(self.parent_area)
-                                m.SetPosition(wxPoint(origin.x + (l_clearance * x), origin.y + (l_clearance * y)))
+                                m.SetPosition(VECTOR2I(wxPoint(origin.x + (l_clearance * x), origin.y + (l_clearance * y))))
                                 m.SetNet(self.target_net)
                                 m.SetViaType(VIATYPE_THROUGH)
                                 m.SetDrill(int(self.drill))
@@ -714,7 +714,7 @@ STEP         = '-'
                             start_rect = wxPoint(origin.x + (l_clearance * x) - clearance,
                                                  origin.y + (l_clearance * y) - clearance)
                             size_rect = wxSize(2 * clearance, 2 * clearance)
-                            if track.HitTest(EDA_RECT(start_rect, size_rect), False):
+                            if track.HitTest(BOX2I(VECTOR2I(start_rect), VECTOR2I(size_rect)), False):
                                 rectangle[x][y] = self.REASON_TRACK
                     except:
                         wxPrint("exception on Processing all tracks...")
