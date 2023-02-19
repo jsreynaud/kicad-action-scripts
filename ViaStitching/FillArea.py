@@ -292,7 +292,8 @@ STEP         = '-'
                     for dy in [-offset, offset]:
                         point_to_test = wxPoint(via.PosX + dx, via.PosY + dy)
 
-                        hit_test_area = area.HitTestFilledArea(area.GetLayer(), VECTOR2I(point_to_test))             # Collides with a filled area
+                        # TODO: check all layers instead of GetFirstLayer
+                        hit_test_area = area.HitTestFilledArea(area.GetFirstLayer(), VECTOR2I(point_to_test))             # Collides with a filled area
                         hit_test_edge = area.HitTestForEdge(VECTOR2I(point_to_test), 1)              # Collides with an edge/corner
                         try:
                             hit_test_zone = area.HitTestInsideZone(VECTOR2I(point_to_test))         # Is inside a zone (e.g. KeepOut/Rules)
