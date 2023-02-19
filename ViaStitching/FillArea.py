@@ -245,7 +245,7 @@ STEP         = '-'
     def AddVia(self, position, x, y):
         if self.parent_area:
             m = PCB_VIA(self.parent_area)
-            m.SetPosition(position)
+            m.SetPosition(VECTOR2I(position))
             if self.target_net is None:
                 self.target_net = self.pcb.FindNet(self.netname)
             m.SetNet(self.target_net)
@@ -277,7 +277,7 @@ STEP         = '-'
         for area in all_areas:
             area_layer = area.GetLayer()
             area_clearance = area.GetLocalClearance()
-            area_priority = area.GetPriority()
+            area_priority = area.GetAssignedPriority()
             is_rules_area = area.GetIsRuleArea()
             is_rule_exclude_via_area = area.GetIsRuleArea() and area.GetDoNotAllowVias()
             is_target_net = (area.GetNetname() == self.netname)  # (area.GetNetname().upper() == self.netname)
@@ -292,10 +292,10 @@ STEP         = '-'
                     for dy in [-offset, offset]:
                         point_to_test = wxPoint(via.PosX + dx, via.PosY + dy)
 
-                        hit_test_area = area.HitTestFilledArea(area.GetLayer(), point_to_test)             # Collides with a filled area
-                        hit_test_edge = area.HitTestForEdge(point_to_test, 1)              # Collides with an edge/corner
+                        hit_test_area = area.HitTestFilledArea(area.GetLayer(), VECTOR2I(point_to_test))             # Collides with a filled area
+                        hit_test_edge = area.HitTestForEdge(VECTOR2I(point_to_test), 1)              # Collides with an edge/corner
                         try:
-                            hit_test_zone = area.HitTestInsideZone(point_to_test)         # Is inside a zone (e.g. KeepOut/Rules)
+                            hit_test_zone = area.HitTestInsideZone(VECTOR2I(point_to_test))         # Is inside a zone (e.g. KeepOut/Rules)
                         except:
                             hit_test_zone = False
                             wxPrint('exception: missing HitTestInsideZone: To Be Fixed')
@@ -315,7 +315,7 @@ STEP         = '-'
                             target_areas_on_same_layer = filter(lambda x: ((x.GetPriority() > area_priority) and (
                                 x.GetLayer() == area_layer) and (x.GetNetname() == self.netname)), all_areas)
                             for area_with_higher_priority in target_areas_on_same_layer:
-                                if area_with_higher_priority.HitTestInsideZone(point_to_test):
+                                if area_with_higher_priority.HitTestInsideZone(VECTOR2I(point_to_test)):
                                     break                                                   # Area of target net has higher priority on this layer
                             else:
                                 # Collides with another signal (e.g. on another layer)
@@ -600,9 +600,9 @@ STEP         = '-'
                             offset = 0  # Use an exact zone match
                             point_to_test = wxPoint(int(current_x), int(current_y))
                             hit_test_area = area.HitTestFilledArea(
-                                area.GetLayer(), point_to_test, int(offset))             # Collides with a filled area
+                                area.GetLayer(), VECTOR2I(point_to_test), int(offset))             # Collides with a filled area
                             # Collides with an edge/corner
-                            hit_test_edge = area.HitTestForEdge(point_to_test, int(max(area_clearance, offset)))
+                            hit_test_edge = area.HitTestForEdge(VECTOR2I(point_to_test), int(max(area_clearance, offset)))
                             # test_result only remains true if the via is inside an area and not on an edge
                             test_result = (hit_test_area and not hit_test_edge)
 
