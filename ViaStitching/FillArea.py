@@ -22,6 +22,7 @@
 
 from __future__ import print_function
 from pcbnew import *
+from builtins import abs 
 import sys
 import tempfile
 import shutil
@@ -357,7 +358,7 @@ STEP         = '-'
         for x_pos in range(x-distance, x+distance+1):
             if (x_pos >= 0) and (x_pos < len(rectangle)):
                 # Star or Standard shape
-                distance_y = distance-abs(x-x_pos) if self.fill_type == self.FILL_TYPE_STAR else distance
+                distance_y = distance - abs(x-x_pos) if self.fill_type == self.FILL_TYPE_STAR else distance
                 for y_pos in range(y-distance_y, y+distance_y+1):
                     if (y_pos >= 0) and (y_pos < len(rectangle[0])):
                         if (x_pos == x) and (y_pos == y):
