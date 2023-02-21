@@ -22,6 +22,7 @@
 
 from __future__ import print_function
 from pcbnew import *
+from builtins import abs 
 import sys
 import tempfile
 import shutil
@@ -245,7 +246,7 @@ STEP         = '-'
     def AddVia(self, position, x, y):
         if self.parent_area:
             m = PCB_VIA(self.parent_area)
-            m.SetPosition(position)
+            m.SetPosition(VECTOR2I(position))
             if self.target_net is None:
                 self.target_net = self.pcb.FindNet(self.netname)
             m.SetNet(self.target_net)
@@ -277,7 +278,7 @@ STEP         = '-'
         for area in all_areas:
             area_layer = area.GetLayer()
             area_clearance = area.GetLocalClearance()
-            area_priority = area.GetPriority()
+            area_priority = area.GetAssignedPriority()
             is_rules_area = area.GetIsRuleArea()
             is_rule_exclude_via_area = area.GetIsRuleArea() and area.GetDoNotAllowVias()
             is_target_net = (area.GetNetname() == self.netname)  # (area.GetNetname().upper() == self.netname)
@@ -292,10 +293,12 @@ STEP         = '-'
                     for dy in [-offset, offset]:
                         point_to_test = wxPoint(via.PosX + dx, via.PosY + dy)
 
-                        hit_test_area = area.HitTestFilledArea(area.GetLayer(), point_to_test)             # Collides with a filled area
-                        hit_test_edge = area.HitTestForEdge(point_to_test, 1)              # Collides with an edge/corner
+                        hit_test_area = False
+                        for layer_id in area.GetLayerSet().CuStack():
+                            hit_test_area = hit_test_area or area.HitTestFilledArea(layer_id, VECTOR2I(point_to_test))             # Collides with a filled area
+                        hit_test_edge = area.HitTestForEdge(VECTOR2I(point_to_test), 1)              # Collides with an edge/corner
                         try:
-                            hit_test_zone = area.HitTestInsideZone(point_to_test)         # Is inside a zone (e.g. KeepOut/Rules)
+                            hit_test_zone = area.HitTestInsideZone(VECTOR2I(point_to_test))         # Is inside a zone (e.g. KeepOut/Rules)
                         except:
                             hit_test_zone = False
                             wxPrint('exception: missing HitTestInsideZone: To Be Fixed')
@@ -315,7 +318,7 @@ STEP         = '-'
                             target_areas_on_same_layer = filter(lambda x: ((x.GetPriority() > area_priority) and (
                                 x.GetLayer() == area_layer) and (x.GetNetname() == self.netname)), all_areas)
                             for area_with_higher_priority in target_areas_on_same_layer:
-                                if area_with_higher_priority.HitTestInsideZone(point_to_test):
+                                if area_with_higher_priority.HitTestInsideZone(VECTOR2I(point_to_test)):
                                     break                                                   # Area of target net has higher priority on this layer
                             else:
                                 # Collides with another signal (e.g. on another layer)
@@ -355,7 +358,7 @@ STEP         = '-'
         for x_pos in range(x-distance, x+distance+1):
             if (x_pos >= 0) and (x_pos < len(rectangle)):
                 # Star or Standard shape
-                distance_y = distance-abs(x-x_pos) if self.fill_type == self.FILL_TYPE_STAR else distance
+                distance_y = distance - abs(x-x_pos) if self.fill_type == self.FILL_TYPE_STAR else distance
                 for y_pos in range(y-distance_y, y+distance_y+1):
                     if (y_pos >= 0) and (y_pos < len(rectangle[0])):
                         if (x_pos == x) and (y_pos == y):
@@ -600,9 +603,9 @@ STEP         = '-'
                             offset = 0  # Use an exact zone match
                             point_to_test = wxPoint(int(current_x), int(current_y))
                             hit_test_area = area.HitTestFilledArea(
-                                area.GetLayer(), point_to_test, int(offset))             # Collides with a filled area
+                                area.GetLayer(), VECTOR2I(point_to_test), int(offset))             # Collides with a filled area
                             # Collides with an edge/corner
-                            hit_test_edge = area.HitTestForEdge(point_to_test, int(max(area_clearance, offset)))
+                            hit_test_edge = area.HitTestForEdge(VECTOR2I(point_to_test), int(max(area_clearance, offset)))
                             # test_result only remains true if the via is inside an area and not on an edge
                             test_result = (hit_test_area and not hit_test_edge)
 
@@ -652,12 +655,12 @@ STEP         = '-'
                             start_rect = wxPoint(origin.x + (l_clearance * x) - local_offset,
                                                  origin.y + (l_clearance * y) - local_offset)
                             size_rect = wxSize(2 * local_offset, 2 * local_offset)
-                            if pad.HitTest(EDA_RECT(start_rect, size_rect), False):
+                            if pad.HitTest(BOX2I(VECTOR2I(start_rect), VECTOR2I(size_rect)), False):
                                 rectangle[x][y] = self.REASON_PAD
                             else:
                                 # Hit test doesn't handle large pads. This following should fix that.
                                 m = PCB_VIA(self.parent_area)
-                                m.SetPosition(wxPoint(origin.x + (l_clearance * x), origin.y + (l_clearance * y)))
+                                m.SetPosition(VECTOR2I(wxPoint(origin.x + (l_clearance * x), origin.y + (l_clearance * y))))
                                 m.SetNet(self.target_net)
                                 m.SetViaType(VIATYPE_THROUGH)
                                 m.SetDrill(int(self.drill))
@@ -713,7 +716,7 @@ STEP         = '-'
                             start_rect = wxPoint(origin.x + (l_clearance * x) - clearance,
                                                  origin.y + (l_clearance * y) - clearance)
                             size_rect = wxSize(2 * clearance, 2 * clearance)
-                            if track.HitTest(EDA_RECT(start_rect, size_rect), False):
+                            if track.HitTest(BOX2I(VECTOR2I(start_rect), VECTOR2I(size_rect)), False):
                                 rectangle[x][y] = self.REASON_TRACK
                     except:
                         wxPrint("exception on Processing all tracks...")
