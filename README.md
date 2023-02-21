@@ -3,6 +3,8 @@
 Please select the right branch according your KiCad version:
  - master for development version of KiCad
  - V5.1 for KiCad version 5.1.*
+ - v6.0 for KiCad version 6.0.*
+ - v7.0 for KiCad version 7.0.*
 
 # Some KiCad plugins in Python
 
