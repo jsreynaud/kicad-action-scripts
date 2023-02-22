@@ -64,6 +64,7 @@ FillArea.FillArea().SetDebug().SetNetname("GND").SetStepMM(1.27).SetSizeMM(0.6).
 
 # with
 # SetDebug: Activate debug mode (print evolution of the board in ascii art)
+# SetViaThroughAreas: Ignores areas on other layers
 # SetNetname: Change the netname to consider for the filling
 # (default is /GND or fallback to GND)
 # SetStepMM: Change step between Via (in mm)
@@ -130,6 +131,7 @@ class FillArea:
         self.SetClearanceMM(0.2)
         self.only_selected_area = False
         self.delete_vias = False
+        self.via_through_areas = False
         if self.pcb is not None:
             for lnet in ["GND", "/GND"]:
                 if self.pcb.FindNet(lnet) is not None:
@@ -160,6 +162,10 @@ class FillArea:
     def SetRandom(self, r):
         random.seed()
         self.random = r
+        return self
+
+    def SetViaThroughAreas(self, r):
+        self.via_through_areas = r
         return self
 
     def SetType(self, type):
@@ -308,11 +314,11 @@ STEP         = '-'
                         if is_rule_exclude_via_area and (hit_test_area or hit_test_edge or hit_test_zone):
                             return self.REASON_KEEPOUT                                      # Collides with keepout/rules
 
-                        elif (hit_test_area or hit_test_edge) and not is_rules_area:
+                        elif (not self.via_through_areas) and (hit_test_area or hit_test_edge) and not is_rules_area:
                             # Collides with another signal (e.g. on another layer) but not a rule zone
                             return self.REASON_OTHER_SIGNAL
 
-                        elif hit_test_zone and not is_rules_area:
+                        elif (not self.via_through_areas) and hit_test_zone and not is_rules_area:
                             # Check if the zone is higher priority than other zones of the target net in the same point
                             # target_areas_on_same_layer = filter(lambda x: ((x.GetPriority() > area_priority) and (x.GetLayer() == area_layer) and (x.GetNetname().upper() == self.netname)), all_areas)
                             target_areas_on_same_layer = filter(lambda x: ((x.GetPriority() > area_priority) and (
@@ -764,8 +770,9 @@ STEP         = '-'
                     ran_y = 0
 
                     if self.random:
-                        ran_x = (random.random() * l_clearance / 2.0) - (l_clearance / 4.0)
-                        ran_y = (random.random() * l_clearance / 2.0) - (l_clearance / 4.0)
+                        max_offset = max(self.step - (self.clearance + self.size), 0) / 2.0
+                        ran_x = (random.random() * max_offset) - (max_offset / 2.0)
+                        ran_y = (random.random() * max_offset) - (max_offset / 2.0)
 
                     self.AddVia(wxPoint(via.PosX + ran_x, via.PosY + ran_y), via.X, via.Y)
                     via_placed += 1
