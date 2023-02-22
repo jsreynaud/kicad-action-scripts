@@ -770,8 +770,9 @@ STEP         = '-'
                     ran_y = 0
 
                     if self.random:
-                        ran_x = (random.random() * l_clearance / 2.0) - (l_clearance / 4.0)
-                        ran_y = (random.random() * l_clearance / 2.0) - (l_clearance / 4.0)
+                        max_offset = max(self.step - (self.clearance + self.size), 0) / 2.0
+                        ran_x = (random.random() * max_offset) - (max_offset / 2.0)
+                        ran_y = (random.random() * max_offset) - (max_offset / 2.0)
 
                     self.AddVia(wxPoint(via.PosX + ran_x, via.PosY + ran_y), via.X, via.Y)
                     via_placed += 1
