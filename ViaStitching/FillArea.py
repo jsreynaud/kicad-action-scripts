@@ -645,7 +645,7 @@ STEP         = '-'
         if self.debug:
             print("%s: Line %u" % (time.time(), currentframe().f_lineno))
         for pad in all_pads:
-            local_offset = max(pad.GetLocalClearance(), self.clearance, max_target_area_clearance) + (self.size / 2)
+            local_offset = max(pad.GetOwnClearance(UNDEFINED_LAYER,""), self.clearance, max_target_area_clearance) + (self.size / 2)
             max_size = max(pad.GetSize().x, pad.GetSize().y)
 
             start_x = int(floor(((pad.GetPosition().x - (max_size / 2.0 + local_offset)) - origin.x) / l_clearance))
@@ -706,7 +706,7 @@ STEP         = '-'
             opx = stop_x
             opy = stop_y
 
-            clearance = max(track.GetLocalClearance(""), self.clearance, max_target_area_clearance) + \
+            clearance = max(track.GetOwnClearance(UNDEFINED_LAYER,""), self.clearance, max_target_area_clearance) + \
                 (self.size / 2) + (track.GetWidth() / 2)
 
             start_x = int(floor(((start_x - clearance) - origin.x) / l_clearance))
