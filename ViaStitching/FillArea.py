@@ -300,8 +300,17 @@ STEP         = '-'
                         point_to_test = wxPoint(via.PosX + dx, via.PosY + dy)
 
                         hit_test_area = False
-                        for layer_id in area.GetLayerSet().CuStack():
-                            hit_test_area = hit_test_area or area.HitTestFilledArea(layer_id, VECTOR2I(point_to_test))             # Collides with a filled area
+                        if pcbnew.Version() < '7':
+                            # below 7.0.0
+                            for layer_id in area.GetLayerSet().CuStack():
+                                hit_test_area = hit_test_area or area.HitTestFilledArea(layer_id, VECTOR2I(point_to_test))             # Collides with a filled area
+                        else:
+                            # 7.0.0 and above
+                            for layer_id in area.GetLayerSet().CuStack():
+                                for i in range(0, area.Outline().OutlineCount()):
+                                    area_outline = area.Outline().Outline(i)
+                                    if area.GetLayerSet().Contains(layer_id) and (layer_id != Edge_Cuts):
+                                        hit_test_area = hit_test_area or area_outline.PointInside(VECTOR2I(point_to_test))
                         hit_test_edge = area.HitTestForEdge(VECTOR2I(point_to_test), 1)              # Collides with an edge/corner
                         try:
                             hit_test_zone = area.HitTestInsideZone(VECTOR2I(point_to_test))         # Is inside a zone (e.g. KeepOut/Rules)
@@ -423,7 +432,12 @@ STEP         = '-'
             for zone in zones:
                 if zone.IsOnLayer(layer_id):
                     if poly_set is not None or not self.only_selected_area or zone.IsSelected():
-                        poly_set_layer.Append(zone.RawPolysList(layer_id))
+                        if pcbnew.Version() < '7':
+                            # below 7.0.0
+                            poly_set_layer.Append(zone.RawPolysList(layer_id))
+                        else:
+                            # 7.0.0 and above
+                            poly_set_layer.Append(zone.Outline())
 
             if poly_set is None:
                 poly_set = poly_set_layer
@@ -608,8 +622,16 @@ STEP         = '-'
                             # Offset is half the size of the via plus the clearance of the via or the area
                             offset = 0  # Use an exact zone match
                             point_to_test = wxPoint(int(current_x), int(current_y))
-                            hit_test_area = area.HitTestFilledArea(
-                                area.GetLayer(), VECTOR2I(point_to_test), int(offset))             # Collides with a filled area
+                            hit_test_area = False
+                            if pcbnew.Version() < '7':
+                                # below 7.0.0
+                                hit_test_area = area.HitTestFilledArea(
+                                    area.GetLayer(), VECTOR2I(point_to_test), int(offset))             # Collides with a filled area
+                            else:
+                                # 7.0.0 and above
+                                for i in range(0, area.Outline().OutlineCount()):
+                                    area_outline = area.Outline().Outline(i)
+                                    hit_test_area = hit_test_area or area_outline.PointInside(VECTOR2I(point_to_test))
                             # Collides with an edge/corner
                             hit_test_edge = area.HitTestForEdge(VECTOR2I(point_to_test), int(max(area_clearance, offset)))
                             # test_result only remains true if the via is inside an area and not on an edge
