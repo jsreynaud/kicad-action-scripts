@@ -300,7 +300,7 @@ STEP         = '-'
                         point_to_test = wxPoint(via.PosX + dx, via.PosY + dy)
 
                         hit_test_area = False
-                        if pcbnew.Version() < '7':
+                        if Version() < '7':
                             # below 7.0.0
                             for layer_id in area.GetLayerSet().CuStack():
                                 hit_test_area = hit_test_area or area.HitTestFilledArea(layer_id, VECTOR2I(point_to_test))             # Collides with a filled area
@@ -432,7 +432,7 @@ STEP         = '-'
             for zone in zones:
                 if zone.IsOnLayer(layer_id):
                     if poly_set is not None or not self.only_selected_area or zone.IsSelected():
-                        if pcbnew.Version() < '7':
+                        if Version() < '7':
                             # below 7.0.0
                             poly_set_layer.Append(zone.RawPolysList(layer_id))
                         else:
@@ -623,7 +623,7 @@ STEP         = '-'
                             offset = 0  # Use an exact zone match
                             point_to_test = wxPoint(int(current_x), int(current_y))
                             hit_test_area = False
-                            if pcbnew.Version() < '7':
+                            if Version() < '7':
                                 # below 7.0.0
                                 hit_test_area = area.HitTestFilledArea(
                                     area.GetLayer(), VECTOR2I(point_to_test), int(offset))             # Collides with a filled area
