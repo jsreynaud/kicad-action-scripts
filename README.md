@@ -48,7 +48,7 @@ Then the result should be:
 
 A pure python script to create circular zone.
 
-Select a component. This composent will be used as center of the
+Select a component. This component will be used as center of the
 circular zone. If no component is selected, the origin (0,0) will be
 used as center.
 
