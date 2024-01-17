@@ -252,7 +252,7 @@ STEP         = '-'
     def AddVia(self, position, x, y):
         if self.parent_area:
             m = PCB_VIA(self.parent_area)
-            m.SetPosition(VECTOR2I(position))
+            m.SetPosition(position)
             if self.target_net is None:
                 self.target_net = self.pcb.FindNet(self.netname)
             m.SetNet(self.target_net)
@@ -297,23 +297,23 @@ STEP         = '-'
                 for dx in [-offset, offset]:
                     # All 4 corners of the via are testet (upper, lower, left, right) but not the center
                     for dy in [-offset, offset]:
-                        point_to_test = wxPoint(via.PosX + dx, via.PosY + dy)
+                        point_to_test = VECTOR2I(via.PosX + dx, via.PosY + dy)
 
                         hit_test_area = False
                         if Version() < '7':
                             # below 7.0.0
                             for layer_id in area.GetLayerSet().CuStack():
-                                hit_test_area = hit_test_area or area.HitTestFilledArea(layer_id, VECTOR2I(point_to_test))             # Collides with a filled area
+                                hit_test_area = hit_test_area or area.HitTestFilledArea(layer_id, point_to_test)             # Collides with a filled area
                         else:
                             # 7.0.0 and above
                             for layer_id in area.GetLayerSet().CuStack():
                                 for i in range(0, area.Outline().OutlineCount()):
                                     area_outline = area.Outline().Outline(i)
                                     if area.GetLayerSet().Contains(layer_id) and (layer_id != Edge_Cuts):
-                                        hit_test_area = hit_test_area or area_outline.PointInside(VECTOR2I(point_to_test))
-                        hit_test_edge = area.HitTestForEdge(VECTOR2I(point_to_test), 1)              # Collides with an edge/corner
+                                        hit_test_area = hit_test_area or area_outline.PointInside(point_to_test)
+                        hit_test_edge = area.HitTestForEdge(point_to_test, 1)              # Collides with an edge/corner
                         try:
-                            hit_test_zone = area.HitTestInsideZone(VECTOR2I(point_to_test))         # Is inside a zone (e.g. KeepOut/Rules)
+                            hit_test_zone = area.HitTestInsideZone(point_to_test)         # Is inside a zone (e.g. KeepOut/Rules)
                         except:
                             hit_test_zone = False
                             wxPrint('exception: missing HitTestInsideZone: To Be Fixed')
@@ -333,7 +333,7 @@ STEP         = '-'
                             target_areas_on_same_layer = filter(lambda x: ((x.GetPriority() > area_priority) and (
                                 x.GetLayer() == area_layer) and (x.GetNetname() == self.netname)), all_areas)
                             for area_with_higher_priority in target_areas_on_same_layer:
-                                if area_with_higher_priority.HitTestInsideZone(VECTOR2I(point_to_test)):
+                                if area_with_higher_priority.HitTestInsideZone(point_to_test):
                                     break                                                   # Area of target net has higher priority on this layer
                             else:
                                 # Collides with another signal (e.g. on another layer)
@@ -411,7 +411,7 @@ STEP         = '-'
             p = outline.PointAlong(l)
 
             if all(self.CheckViaDistance(p, via, outline_parent) for via in all_vias):
-                via = self.AddVia(p.getWxPoint(), 0, 0)
+                via = self.AddVia(p, 0, 0)
                 all_vias.append(via)
                 via_placed += 1
         return via_placed
@@ -450,7 +450,7 @@ STEP         = '-'
                 return
 
         # Size the polygons so the vias fit inside
-        poly_set.Inflate(int(-(1*self.clearance + 0.5*self.size)), 12, SHAPE_POLY_SET.CHAMFER_ALL_CORNERS)
+        poly_set.Inflate(int(-(1*self.clearance + 0.5*self.size)), CORNER_STRATEGY_CHAMFER_ALL_CORNERS, FromMM(0.01))
 
         wxPrint("Generating concentric via placement")
         # Get all vias from the selected net
@@ -471,7 +471,7 @@ STEP         = '-'
 
             # Size the polygons to place the next ring
             if self.fill_type == self.FILL_TYPE_CONCENTRIC:
-                poly_set.Inflate(int(-max(self.step, self.size+self.clearance)), 12, SHAPE_POLY_SET.CHAMFER_ALL_CORNERS)
+                poly_set.Inflate(int(-max(self.step, self.size+self.clearance)), CORNER_STRATEGY_CHAMFER_ALL_CORNERS, FromMM(0.01))
                 off = 0.5 if off == 0 else 0
             else:
                 poly_set = SHAPE_POLY_SET()
@@ -586,7 +586,7 @@ STEP         = '-'
         board_edge = SHAPE_POLY_SET()
         self.pcb.GetBoardPolygonOutlines(board_edge)
         b_clearance = max(self.pcb.GetDesignSettings().m_CopperEdgeClearance, self.clearance) + self.size
-        board_edge.Deflate(int(b_clearance), int(12),  SHAPE_POLY_SET.ROUND_ALL_CORNERS)
+        board_edge.Deflate(int(b_clearance), CORNER_STRATEGY_ROUND_ALL_CORNERS, FromMM(0.01))
 
         via_list = []       # Create a list of existing vias => faster than scanning through the whole rectangle
         max_target_area_clearance = 0
@@ -621,7 +621,7 @@ STEP         = '-'
 
                             # Offset is half the size of the via plus the clearance of the via or the area
                             offset = 0  # Use an exact zone match
-                            point_to_test = wxPoint(int(current_x), int(current_y))
+                            point_to_test = VECTOR2I(int(current_x), int(current_y))
                             hit_test_area = False
                             if Version() < '7':
                                 # below 7.0.0
@@ -631,13 +631,13 @@ STEP         = '-'
                                 # 7.0.0 and above
                                 for i in range(0, area.Outline().OutlineCount()):
                                     area_outline = area.Outline().Outline(i)
-                                    hit_test_area = hit_test_area or area_outline.PointInside(VECTOR2I(point_to_test))
+                                    hit_test_area = hit_test_area or area_outline.PointInside(point_to_test)
                             # Collides with an edge/corner
-                            hit_test_edge = area.HitTestForEdge(VECTOR2I(point_to_test), int(max(area_clearance, offset)))
+                            hit_test_edge = area.HitTestForEdge(point_to_test, int(max(area_clearance, offset)))
                             # test_result only remains true if the via is inside an area and not on an edge
                             test_result = (hit_test_area and not hit_test_edge)
 
-                            test_result = (test_result and board_edge.Collide(VECTOR2I(point_to_test)))  # check if inside board outline
+                            test_result = (test_result and board_edge.Collide(point_to_test))  # check if inside board outline
 
                             if test_result:
                                 # Create a via object with information about the via and place it in the rectangle
@@ -680,15 +680,15 @@ STEP         = '-'
                 for y in range(start_y, stop_y + 1):
                     try:
                         if isinstance(rectangle[x][y], ViaObject):
-                            start_rect = wxPoint(origin.x + (l_clearance * x) - local_offset,
+                            start_rect = VECTOR2I(origin.x + (l_clearance * x) - local_offset,
                                                  origin.y + (l_clearance * y) - local_offset)
-                            size_rect = wxSize(2 * local_offset, 2 * local_offset)
-                            if pad.HitTest(BOX2I(VECTOR2I(start_rect), VECTOR2I(size_rect)), False):
+                            size_rect = VECTOR2I(2 * local_offset, 2 * local_offset)
+                            if pad.HitTest(BOX2I(start_rect, size_rect), False):
                                 rectangle[x][y] = self.REASON_PAD
                             else:
                                 # Hit test doesn't handle large pads. This following should fix that.
                                 m = PCB_VIA(self.parent_area)
-                                m.SetPosition(VECTOR2I(wxPoint(origin.x + (l_clearance * x), origin.y + (l_clearance * y))))
+                                m.SetPosition(VECTOR2I(origin.x + (l_clearance * x), origin.y + (l_clearance * y)))
                                 m.SetNet(self.target_net)
                                 m.SetViaType(VIATYPE_THROUGH)
                                 m.SetDrill(int(self.drill))
@@ -728,7 +728,7 @@ STEP         = '-'
             opx = stop_x
             opy = stop_y
 
-            clearance = max(track.GetOwnClearance(UNDEFINED_LAYER,""), self.clearance, max_target_area_clearance) + \
+            clearance = max(track.GetOwnClearance(UNDEFINED_LAYER, ""), self.clearance, max_target_area_clearance) + \
                 (self.size / 2) + (track.GetWidth() / 2)
 
             start_x = int(floor(((start_x - clearance) - origin.x) / l_clearance))
@@ -741,10 +741,10 @@ STEP         = '-'
                 for y in range(start_y, stop_y + 1):
                     try:
                         if isinstance(rectangle[x][y], ViaObject):
-                            start_rect = wxPoint(origin.x + (l_clearance * x) - clearance,
+                            start_rect = VECTOR2I(origin.x + (l_clearance * x) - clearance,
                                                  origin.y + (l_clearance * y) - clearance)
-                            size_rect = wxSize(2 * clearance, 2 * clearance)
-                            if track.HitTest(BOX2I(VECTOR2I(start_rect), VECTOR2I(size_rect)), False):
+                            size_rect = VECTOR2I(2 * clearance, 2 * clearance)
+                            if track.HitTest(BOX2I(start_rect, size_rect), False):
                                 rectangle[x][y] = self.REASON_TRACK
                     except:
                         wxPrint("exception on Processing all tracks...")
@@ -796,7 +796,7 @@ STEP         = '-'
                         ran_x = (random.random() * max_offset) - (max_offset / 2.0)
                         ran_y = (random.random() * max_offset) - (max_offset / 2.0)
 
-                    self.AddVia(wxPoint(via.PosX + ran_x, via.PosY + ran_y), via.X, via.Y)
+                    self.AddVia(VECTOR2I(int(via.PosX + ran_x), int(via.PosY + ran_y)), via.X, via.Y)
                     via_placed += 1
 
         if self.debug:
