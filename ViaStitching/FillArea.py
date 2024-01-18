@@ -22,7 +22,7 @@
 
 from __future__ import print_function
 from pcbnew import *
-from builtins import abs 
+from builtins import abs
 import sys
 import tempfile
 import shutil
@@ -272,9 +272,14 @@ STEP         = '-'
     def RefillBoardAreas(self):
         for i in range(self.pcb.GetAreaCount()):
             area = self.pcb.GetArea(i)
-            area.UnFill()
-        filler = ZONE_FILLER(self.pcb)
-        filler.Fill(self.pcb.Zones())
+            # No more making a real refill since it's crashing KiCad
+            if Version() < '7':
+                None
+            else:
+                area.SetNeedRefill(True)
+            # area.UnFill()
+        # filler = ZONE_FILLER(self.pcb)
+        # filler.Fill(self.pcb.Zones())
 
     def CheckViaInAllAreas(self, via, all_areas):
         '''
@@ -316,7 +321,7 @@ STEP         = '-'
                             hit_test_zone = area.HitTestInsideZone(VECTOR2I(point_to_test))         # Is inside a zone (e.g. KeepOut/Rules)
                         except:
                             hit_test_zone = False
-                            wxPrint('exception: missing HitTestInsideZone: To Be Fixed')
+                            # wxPrint('exception: missing HitTestInsideZone: To Be Fixed (not available in kicad 7.0)')
                             # hit_test_zone   = area.HitTest(point_to_test)
 
                         # Is inside a zone (e.g. KeepOut/Rules with via exlusion) kicad
@@ -417,14 +422,11 @@ STEP         = '-'
         return via_placed
 
     def ConcentricFillVias(self):
-        wxPrint("Refill all zones")
-        self.RefillBoardAreas()
 
         wxPrint("Calculate placement areas")
 
         zones = [zone for zone in self.pcb.Zones() if zone.GetNetname() == self.netname]
         self.parent_area = zones[0]
-
         # Create set of polygons where fill zones overlap on all layers
         poly_set = None
         for layer_id in self.pcb.GetEnabledLayers().CuStack():
@@ -476,11 +478,10 @@ STEP         = '-'
             else:
                 poly_set = SHAPE_POLY_SET()
 
-        wxPrint("Refill all zones")
         self.RefillBoardAreas()
 
-        msg = "{:d} vias placed\n".format(via_placed)
-        wxPrint(msg+"Done!")
+        msg = "Done. {:d} vias placed. You have to refill all your pcb's areas/zones !!!".format(via_placed)
+        wxPrint(msg)
 
         return via_placed
 
@@ -667,7 +668,7 @@ STEP         = '-'
         if self.debug:
             print("%s: Line %u" % (time.time(), currentframe().f_lineno))
         for pad in all_pads:
-            local_offset = max(pad.GetOwnClearance(UNDEFINED_LAYER,""), self.clearance, max_target_area_clearance) + (self.size / 2)
+            local_offset = max(pad.GetOwnClearance(UNDEFINED_LAYER, ""), self.clearance, max_target_area_clearance) + (self.size / 2)
             max_size = max(pad.GetSize().x, pad.GetSize().y)
 
             start_x = int(floor(((pad.GetPosition().x - (max_size / 2.0 + local_offset)) - origin.x) / l_clearance))
@@ -728,7 +729,7 @@ STEP         = '-'
             opx = stop_x
             opy = stop_y
 
-            clearance = max(track.GetOwnClearance(UNDEFINED_LAYER,""), self.clearance, max_target_area_clearance) + \
+            clearance = max(track.GetOwnClearance(UNDEFINED_LAYER, ""), self.clearance, max_target_area_clearance) + \
                 (self.size / 2) + (track.GetWidth() / 2)
 
             start_x = int(floor(((start_x - clearance) - origin.x) / l_clearance))
@@ -809,8 +810,8 @@ STEP         = '-'
 
         if self.filename:
             self.pcb.Save(self.filename)
-        msg = "{:d} vias placed\n".format(via_placed)
-        wxPrint(msg+"Done!")
+        msg = "Done. {:d} vias placed. You have to refill all your pcb's areas/zones !!!".format(via_placed)
+        wxPrint(msg)
 
 
 if __name__ == '__main__':
