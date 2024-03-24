@@ -679,14 +679,14 @@ STEP         = '-'
                 for y in range(start_y, stop_y + 1):
                     try:
                         if isinstance(rectangle[x][y], ViaObject):
-                            start_rect = VECTOR2I(origin.x + (l_clearance * x) - local_offset, origin.y + (l_clearance * y) - local_offset)
-                            size_rect = VECTOR2I(2 * local_offset, 2 * local_offset)
+                            size_rect = VECTOR2I(int(2 * local_offset), int(2 * local_offset))
+                            start_rect = VECTOR2I(int(origin.x + (l_clearance * x) - local_offset), int(origin.y + (l_clearance * y) - local_offset))
                             if pad.HitTest(BOX2I(start_rect, size_rect), False):
                                 rectangle[x][y] = self.REASON_PAD
                             else:
                                 # Hit test doesn't handle large pads. This following should fix that.
                                 m = PCB_VIA(self.parent_area)
-                                m.SetPosition(VECTOR2I(origin.x + (l_clearance * x), origin.y + (l_clearance * y)))
+                                m.SetPosition(VECTOR2I(int(origin.x + (l_clearance * x)), int(origin.y + (l_clearance * y))))
                                 m.SetNet(self.target_net)
                                 m.SetViaType(VIATYPE_THROUGH)
                                 m.SetDrill(int(self.drill))
@@ -738,8 +738,8 @@ STEP         = '-'
                 for y in range(start_y, stop_y + 1):
                     try:
                         if isinstance(rectangle[x][y], ViaObject):
-                            start_rect = VECTOR2I(origin.x + (l_clearance * x) - clearance, origin.y + (l_clearance * y) - clearance)
-                            size_rect = VECTOR2I(2 * clearance, 2 * clearance)
+                            start_rect = VECTOR2I(int(origin.x + (l_clearance * x) - clearance), int(origin.y + (l_clearance * y) - clearance))
+                            size_rect = VECTOR2I(int(2 * clearance), int(2 * clearance))
                             if track.HitTest(BOX2I(start_rect, size_rect), False):
                                 rectangle[x][y] = self.REASON_TRACK
                     except:
