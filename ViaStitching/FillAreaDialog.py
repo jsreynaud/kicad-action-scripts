@@ -110,6 +110,14 @@ class FillAreaDialog ( wx.Dialog ):
 		self.m_viaThroughAreas = wx.CheckBox( self, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0 )
 		fgSizer1.Add( self.m_viaThroughAreas, 0, wx.ALL, 5 )
 
+		self.m_staticText72 = wx.StaticText( self, wx.ID_ANY, u"Also on tracks with same net", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.m_staticText72.Wrap( -1 )
+
+		fgSizer1.Add( self.m_staticText72, 0, wx.ALL, 5 )
+
+		self.m_sameNetTracks = wx.CheckBox( self, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0 )
+		fgSizer1.Add( self.m_sameNetTracks, 0, wx.ALL, 5 )
+
 		self.m_staticText7 = wx.StaticText( self, wx.ID_ANY, u"Debug mode", wx.DefaultPosition, wx.DefaultSize, 0 )
 		self.m_staticText7.Wrap( -1 )
 
