@@ -132,6 +132,7 @@ class FillArea:
         self.only_selected_area = False
         self.delete_vias = False
         self.via_through_areas = False
+        self.same_net_tracks = False
         if self.pcb is not None:
             for lnet in ["GND", "/GND"]:
                 if self.pcb.FindNet(lnet) is not None:
@@ -166,6 +167,10 @@ class FillArea:
 
     def SetViaThroughAreas(self, r):
         self.via_through_areas = r
+        return self
+
+    def SetSameNetTracks(self, r):
+        self.same_net_tracks = r
         return self
 
     def SetType(self, type):
@@ -705,6 +710,9 @@ STEP         = '-'
         if self.debug:
             print("%s: Line %u" % (time.time(), currentframe().f_lineno))
         for track in all_tracks:
+            if self.same_net_tracks:
+                if not isinstance(track, PCB_VIA) and track.GetNetname() == self.netname:
+                    continue
             start_x = track.GetStart().x
             start_y = track.GetStart().y
 
