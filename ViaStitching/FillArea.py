@@ -696,7 +696,7 @@ STEP         = '-'
                                 m.SetViaType(VIATYPE_THROUGH)
                                 m.SetDrill(int(self.drill))
                                 m.SetWidth(int(self.size))
-                                if pad.GetEffectivePolygon().Collide(m.GetEffectiveShape()):
+                                if pad.GetEffectivePolygon(pad.GetLayer()).Collide(m.GetEffectiveShape()):
                                     rectangle[x][y] = self.REASON_PAD
 
                     except:
