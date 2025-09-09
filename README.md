@@ -8,6 +8,7 @@ Please select the right branch according your KiCad version:
  - v6.0 for KiCad version 6.0.*
  - v7.0 for KiCad version 7.0.*
  - v8.0 for KiCad version 8.0.*
+ - v9.0 for KiCad version 9.0.*
 
 # Know issues
 
