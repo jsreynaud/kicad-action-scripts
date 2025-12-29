@@ -1,7 +1,9 @@
 #
 #  FillAreaAction.py
+#  Via stitching action plugin
 #
 #  Copyright 2017 JS Reynaud <js.reynaud@gmail.com>
+#  Copyright 2025 Geoff Wall / Ceres Imaging (enhancements)
 #
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -17,6 +19,7 @@
 #  along with this program; if not, write to the Free Software
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #  MA 02110-1301, USA.
+
 from __future__ import print_function
 import pcbnew
 import wx
@@ -25,17 +28,39 @@ from . import FillAreaDialog
 import os
 
 
+def GetKiCadUnits():
+    """Get KiCad's current display units (mm or mil)"""
+    try:
+        # KiCad 9 uses GetUserUnits() - returns EDA_UNITS enum
+        units = pcbnew.GetUserUnits()
+        # EDA_UNITS_MILS = 5 in KiCad 9
+        if hasattr(pcbnew, 'EDA_UNITS_MILS') and units == pcbnew.EDA_UNITS_MILS:
+            return "mil"
+        elif hasattr(pcbnew, 'EDA_UNITS_INCHES') and units == pcbnew.EDA_UNITS_INCHES:
+            return "mil"  # Treat inches as mil for our purposes
+        elif units == 5:  # Fallback: EDA_UNITS_MILS value
+            return "mil"
+        else:
+            return "mm"
+    except Exception:
+        return "mm"  # Default to mm
+
+
 def PopulateNets(anet, dlg):
+    """Populate net dropdown with zone nets"""
     netnames = list(set([zone.GetNetname() for zone in pcbnew.GetBoard().Zones()]))
     netnames.sort()
     dlg.m_cbNet.Set(netnames)
     if anet is not None:
         index = dlg.m_cbNet.FindString(anet)
-        dlg.m_cbNet.Select(index)
-#
+        if index != wx.NOT_FOUND:
+            dlg.m_cbNet.Select(index)
+        elif netnames:
+            dlg.m_cbNet.Select(0)
 
 
 class FillAreaDialogEx(FillAreaDialog.FillAreaDialog):
+    """Extended dialog with delete button handling"""
 
     def onDeleteClick(self, event):
         return self.EndModal(wx.ID_DELETE)
@@ -51,57 +76,113 @@ class FillAreaAction(pcbnew.ActionPlugin):
         self.show_toolbar_button = True
 
     def Run(self):
+        # Create dialog
         a = FillAreaDialogEx(None)
-        # a.m_SizeMM.SetValue("0.8")
-        a.m_StepMM.SetValue("2.54")
-        # a.m_DrillMM.SetValue("0.3")
-        # a.m_Netname.SetValue("GND")
-        # a.m_ClearanceMM.SetValue("0.2")
-        a.m_bitmapStitching.SetBitmap(wx.Bitmap(os.path.join(os.path.dirname(os.path.realpath(__file__)), "stitching-vias-help.png")))
+
+        # Get board and design settings
         self.board = pcbnew.GetBoard()
         self.boardDesignSettings = self.board.GetDesignSettings()
+
+        # Pass board reference for group management
+        a.SetBoard(self.board)
+
+        # Check if config file exists
+        config_exists = os.path.exists(a.GetConfigPath())
+
+        # Set defaults from board design settings (will be overridden by LoadSettings if config exists)
         a.m_SizeMM.SetValue(str(pcbnew.ToMM(self.boardDesignSettings.GetCurrentViaSize())))
         a.m_DrillMM.SetValue(str(pcbnew.ToMM(self.boardDesignSettings.GetCurrentViaDrill())))
         a.m_ClearanceMM.SetValue(str(pcbnew.ToMM(self.boardDesignSettings.GetSmallestClearanceValue())))
+        # m_StepMM and m_HoleClearanceMM have defaults set in dialog
+
+        # Load saved settings (overrides board defaults if config exists)
+        a.LoadSettings()
+
+        # If no config exists, use KiCad's current units
+        if not config_exists:
+            kicad_units = GetKiCadUnits()
+            if kicad_units == "mil" and a.current_unit == "mm":
+                # Convert to mil
+                a.m_cbUnit.SetSelection(1)  # Select "mil"
+                a.OnUnitChange(None)
+
+        # Update help text to show converted units
+        a.UpdateHelpText()
+
         a.SetMinSize(a.GetSize())
 
+        # Populate nets
         PopulateNets("GND", a)
+
+        # Show dialog
         modal_result = a.ShowModal()
+
         if modal_result == wx.ID_OK:
-            wx.LogMessage('Via Stitching')
-            if 1:  # try:
+            # Save settings for next time
+            a.SaveSettings()
+
+            wx.LogMessage('Via Stitching Generator starting...')
+
+            try:
                 fill = FillArea.FillArea()
-                fill.SetStepMM(float(a.m_StepMM.GetValue().replace(',', '.')))
-                fill.SetSizeMM(float(a.m_SizeMM.GetValue().replace(',', '.')))
-                fill.SetDrillMM(float(a.m_DrillMM.GetValue().replace(',', '.')))
-                fill.SetClearanceMM(float(a.m_ClearanceMM.GetValue().replace(',', '.')))
-                # fill.SetNetname(a.m_Netname.GetValue())
+
+                # Set parameters using helper methods that handle unit conversion
+                fill.SetStepMM(a.GetStepValueMM())
+                fill.SetSizeMM(a.GetSizeValueMM())
+                fill.SetDrillMM(a.GetDrillValueMM())
+                fill.SetClearanceMM(a.GetClearanceValueMM())
+
+                # Set hole clearance if the method exists (enhancement)
+                if hasattr(fill, 'SetHoleClearanceMM'):
+                    fill.SetHoleClearanceMM(a.GetHoleClearanceValueMM())
+
+                # Set net
                 netname = a.m_cbNet.GetStringSelection()
                 fill.SetNetname(netname)
-                if a.m_Debug.IsChecked():
-                    fill.SetDebug()
-                fill.SetRandom(a.m_Random.IsChecked())
-                fill.SetViaThroughAreas(a.m_viaThroughAreas.IsChecked())
+
+                # Set fill type/pattern
                 fill.SetType(a.m_cbFillType.GetStringSelection())
+
+                # Set options
+                fill.SetRandom(a.m_Random.IsChecked())
                 fill.SetSameNetTracks(a.m_sameNetTracks.IsChecked())
+
                 if a.m_only_selected.IsChecked():
                     fill.OnlyOnSelectedArea()
+
+                # Set nudge option if method exists (enhancement)
+                if hasattr(fill, 'SetNudgeEnabled'):
+                    fill.SetNudgeEnabled(a.m_Nudge.IsChecked())
+
+                # Set ignored layers if method exists (enhancement)
+                if hasattr(fill, 'SetIgnoredLayers'):
+                    fill.SetIgnoredLayers(a.GetIgnoredLayers())
+
+                # Run!
                 fill.Run()
-            else:  # except Exception:
-                wx.MessageDialog(None, "Invalid parameter")
+
+                wx.LogMessage('Via Stitching Generator complete')
+
+            except Exception as e:
+                wx.LogError(f"Error during via stitching: {str(e)}")
+                import traceback
+                wx.LogError(traceback.format_exc())
+
         elif modal_result == wx.ID_DELETE:
-            if 1:  # try:
+            # Delete all vias on net
+            try:
                 fill = FillArea.FillArea()
-                fill.SetNetname(a.m_cbNet.GetStringSelection())  # a.m_Netname.GetValue())
-                if a.m_Debug.IsChecked():
-                    fill.SetDebug()
+                fill.SetNetname(a.m_cbNet.GetStringSelection())
                 fill.DeleteVias()
                 fill.Run()
-            else:  # except Exception:
-                wx.MessageDialog(None, "Invalid parameter for delete")
+            except Exception as e:
+                wx.LogError(f"Error deleting vias: {str(e)}")
+
         else:
-            print("Cancel")
+            print("Cancelled")
+
         a.Destroy()
 
 
+# Register the plugin
 FillAreaAction().register()

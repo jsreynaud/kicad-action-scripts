@@ -2,8 +2,17 @@
 # -*- coding: utf-8 -*-
 #
 #  FillArea.py
+#  Via stitching with spatial indexing, nudge search, and progress dialog
 #
 #  Copyright 2017 JS Reynaud <js.reynaud@gmail.com>
+#  Copyright 2025 Geoff Wall / Ceres Imaging (enhancements)
+#
+#  Enhancements:
+#  - Spatial hash indexing for O(1) collision detection
+#  - Spiral nudge search to find valid positions when grid points blocked
+#  - Progress dialog with cancel button
+#  - Numbered groups for each run ("ViaStitching GND #1", "#2", etc.)
+#  - Hole clearance parameter for drill-to-drill spacing
 #
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -32,6 +41,7 @@ import pprint
 import wx
 from inspect import currentframe, getframeinfo
 import time
+import math
 
 
 def wxPrint(msg):
@@ -45,41 +55,130 @@ else:
     xrange = range
 
 
-"""
-#  This script fills all areas of a specific net with Vias (Via Stitching)
-#
-#
-# Usage in pcbnew's python console:
-#  First you neet to copy this file (named FillArea.py) in your kicad_plugins
-# directory (~/.kicad_plugins/ on Linux)
-# Launch pcbnew and open python console (last entry of Tools menu)
-# Then enter the following line (one by one, Hit enter after each)
-import FillArea
-FillArea.FillArea().Run()
+class SpatialHash:
+    """
+    Spatial hash for O(1) collision detection.
+    Divides the board into a grid of cells, each containing references
+    to objects that overlap that cell.
+    """
 
+    def __init__(self, cell_size):
+        self.cell_size = cell_size
+        self.cells = {}  # (cx, cy) -> list of (x, y, radius, obj_type)
 
-# Other example:
-# You can add modifications to parameters by adding functions calls:
-FillArea.FillArea().SetDebug().SetNetname("GND").SetStepMM(1.27).SetSizeMM(0.6).SetDrillMM(0.3).SetClearanceMM(0.2).Run()
+    def _get_cell(self, x, y):
+        """Get cell coordinates for a point"""
+        return (int(x // self.cell_size), int(y // self.cell_size))
 
-# with
-# SetDebug: Activate debug mode (print evolution of the board in ascii art)
-# SetViaThroughAreas: Ignores areas on other layers
-# SetNetname: Change the netname to consider for the filling
-# (default is /GND or fallback to GND)
-# SetStepMM: Change step between Via (in mm)
-# SetSizeMM: Change Via copper size (in mm)
-# SetDrillMM: Change Via drill hole size (in mm)
-# SetClearanceMM: Change clearance for Via (in mm)
+    def _get_cells_for_circle(self, x, y, radius):
+        """Get all cells that a circle overlaps"""
+        min_cx = int((x - radius) // self.cell_size)
+        max_cx = int((x + radius) // self.cell_size)
+        min_cy = int((y - radius) // self.cell_size)
+        max_cy = int((y + radius) // self.cell_size)
+        for cx in range(min_cx, max_cx + 1):
+            for cy in range(min_cy, max_cy + 1):
+                yield (cx, cy)
 
-#  You can also use it in command line. In this case, the first parameter is
-# the pcb file path. Default options are applied.
+    def insert(self, x, y, radius, obj_type="obstacle"):
+        """Insert an obstacle (circle) into the spatial hash"""
+        for cell in self._get_cells_for_circle(x, y, radius):
+            if cell not in self.cells:
+                self.cells[cell] = []
+            self.cells[cell].append((x, y, radius, obj_type))
 
-"""
+    def insert_rect(self, x1, y1, x2, y2, obj_type="obstacle"):
+        """Insert a rectangular obstacle"""
+        # Ensure proper ordering
+        if x1 > x2:
+            x1, x2 = x2, x1
+        if y1 > y2:
+            y1, y2 = y2, y1
+
+        min_cx = int(x1 // self.cell_size)
+        max_cx = int(x2 // self.cell_size)
+        min_cy = int(y1 // self.cell_size)
+        max_cy = int(y2 // self.cell_size)
+
+        for cx in range(min_cx, max_cx + 1):
+            for cy in range(min_cy, max_cy + 1):
+                cell = (cx, cy)
+                if cell not in self.cells:
+                    self.cells[cell] = []
+                # Store as rect: (x1, y1, x2, y2, "rect", obj_type)
+                self.cells[cell].append((x1, y1, x2, y2, "rect", obj_type))
+
+    def insert_zone(self, zone, obj_type="zone"):
+        """Insert a zone/rule area using its bounding box for spatial indexing"""
+        bbox = zone.GetBoundingBox()
+        x1, y1 = bbox.GetX(), bbox.GetY()
+        x2, y2 = x1 + bbox.GetWidth(), y1 + bbox.GetHeight()
+
+        min_cx = int(x1 // self.cell_size)
+        max_cx = int(x2 // self.cell_size)
+        min_cy = int(y1 // self.cell_size)
+        max_cy = int(y2 // self.cell_size)
+
+        for cx in range(min_cx, max_cx + 1):
+            for cy in range(min_cy, max_cy + 1):
+                cell = (cx, cy)
+                if cell not in self.cells:
+                    self.cells[cell] = []
+                # Store zone reference for precise testing later
+                self.cells[cell].append(("zone", zone, obj_type))
+
+    def check_collision(self, x, y, radius):
+        """Check if a circle at (x,y) with given radius collides with any obstacle"""
+        for cell in self._get_cells_for_circle(x, y, radius):
+            if cell in self.cells:
+                for item in self.cells[cell]:
+                    if len(item) == 3 and item[0] == "zone":
+                        # Zone items are handled by check_keepout_zones, skip here
+                        continue
+                    elif len(item) == 6 and item[4] == "rect":
+                        # Rectangle collision
+                        x1, y1, x2, y2, _, obj_type = item
+                        # Check if circle center + radius overlaps rectangle
+                        closest_x = max(x1, min(x, x2))
+                        closest_y = max(y1, min(y, y2))
+                        dist_sq = (x - closest_x) ** 2 + (y - closest_y) ** 2
+                        if dist_sq <= radius * radius:
+                            return True
+                    elif len(item) == 4:
+                        # Circle collision
+                        ox, oy, oradius, obj_type = item
+                        dist_sq = (x - ox) ** 2 + (y - oy) ** 2
+                        min_dist = radius + oradius
+                        if dist_sq <= min_dist * min_dist:
+                            return True
+        return False
+
+    def check_keepout_zones(self, x, y):
+        """Check if point (x,y) is inside any keepout zone. Returns the zone or None."""
+        cell = self._get_cell(x, y)
+        if cell in self.cells:
+            for item in self.cells[cell]:
+                if len(item) == 3 and item[0] == "zone":
+                    _, zone, obj_type = item
+                    if obj_type == "keepout":
+                        # Do precise point-in-polygon test
+                        point = VECTOR2I(int(x), int(y))
+                        try:
+                            if zone.HitTestInsideZone(point):
+                                return zone
+                        except:
+                            # Fallback: check outline
+                            try:
+                                for i in range(zone.Outline().OutlineCount()):
+                                    outline = zone.Outline().Outline(i)
+                                    if outline.PointInside(point):
+                                        return zone
+                            except:
+                                pass
+        return None
 
 
 class ViaObject:
-
     """
     ViaObject holds all information of a single Via
     """
@@ -92,10 +191,15 @@ class ViaObject:
 
 
 class FillArea:
-
     """
-    Automaticaly add via on area where there are no track/existing via,
-    pads and keepout areas
+    Automatically add vias on area where there are no tracks/existing vias,
+    pads and keepout areas.
+
+    Enhanced with:
+    - Spatial hash indexing for O(1) collision detection
+    - Nudge search to find valid positions near blocked grid points
+    - Progress dialog with cancel support
+    - Numbered groups for easier management
     """
 
     REASON_OK = 0
@@ -108,7 +212,7 @@ class FillArea:
     REASON_STEP = 7
 
     FILL_TYPE_RECTANGULAR = "Rectangular"
-    FILL_TYPE_STAR = "Star"
+    FILL_TYPE_STAGGERED = "Staggered"
     FILL_TYPE_CONCENTRIC = "Concentric"
     FILL_TYPE_OUTLINE = "Outline"
     FILL_TYPE_OUTLINE_NO_HOLES = "Outline (No Holes)"
@@ -116,6 +220,9 @@ class FillArea:
     def __init__(self, filename=None):
         self.filename = None
         self.clearance = 0
+        self.hole_clearance = 0  # Enhancement: separate hole-to-hole clearance
+        self.nudge_enabled = True  # Enhancement: nudge search
+        self.ignored_layers = []  # Enhancement: layers to ignore during placement
         # Net name to use
         self.SetPCB(GetBoard())
         # Set the filename
@@ -129,9 +236,9 @@ class FillArea:
         # Isolation between via and other elements
         # ie: radius from the border of the via
         self.SetClearanceMM(0.2)
+        self.SetHoleClearanceMM(0.5)  # Default 0.5mm hole clearance
         self.only_selected_area = False
         self.delete_vias = False
-        self.via_through_areas = False
         self.same_net_tracks = False
         if self.pcb is not None:
             for lnet in ["GND", "/GND"]:
@@ -149,6 +256,9 @@ class FillArea:
         self.parent_area = None
         self.pcb_group = None
         self.target_net = None
+        self.spatial_hash = None  # Enhancement: spatial indexing
+        self.progress_dialog = None  # Enhancement: progress dialog
+        self.cancelled = False
 
     def SetFile(self, filename):
         self.filename = filename
@@ -165,8 +275,9 @@ class FillArea:
         self.random = r
         return self
 
-    def SetViaThroughAreas(self, r):
-        self.via_through_areas = r
+    def SetIgnoredLayers(self, layer_names):
+        """Set list of layer names to ignore during via placement"""
+        self.ignored_layers = layer_names if layer_names else []
         return self
 
     def SetSameNetTracks(self, r):
@@ -184,8 +295,7 @@ class FillArea:
         return self
 
     def SetNetname(self, netname):
-        self.netname = netname  # .upper()
-        # wx.LogMessage(self.netname)
+        self.netname = netname
         return self
 
     def SetStepMM(self, s):
@@ -212,6 +322,18 @@ class FillArea:
         self.clearance = float(FromMM(s))
         return self
 
+    # Enhancement: hole clearance
+    def SetHoleClearanceMM(self, s):
+        """Set minimum hole-to-hole clearance in mm"""
+        self.hole_clearance = float(FromMM(s))
+        return self
+
+    # Enhancement: nudge search toggle
+    def SetNudgeEnabled(self, enabled):
+        """Enable/disable nudge search for blocked grid positions"""
+        self.nudge_enabled = enabled
+        return self
+
     def GetReasonSymbol(self, reason):
         if isinstance(reason, ViaObject):
             return "X"
@@ -233,9 +355,7 @@ class FillArea:
         return str(reason)
 
     def PrintRect(self, rectangle):
-        """debuging tool
-        Print board in ascii art
-        """
+        """debugging tool - Print board in ascii art"""
         print("_" * (len(rectangle) + 2))
         for y in range(len(rectangle[0])):
             print("|", end="")
@@ -267,9 +387,6 @@ STEP         = '-'
             m.SetDrill(int(self.drill))
             m.SetWidth(int(self.size))
             m.SetIsFree(True)
-            # again possible to mark via as own since no timestamp_t binding kicad v5.1.4
-            # m.SetParentGroup(self.parent_group)
-            # wx.LogMessage('adding vias')
             self.pcb.Add(m)
             self.pcb_group.AddItem(m)
             return m
@@ -277,152 +394,97 @@ STEP         = '-'
             wxPrint("\nUnable to find a valid parent area (zone)")
 
     def RefillBoardAreas(self):
-        for i in range(self.pcb.GetAreaCount()):
-            area = self.pcb.GetArea(i)
-            # No more making a real refill since it's crashing KiCad
+        for area in self.pcb.Zones():
             if Version() < "7":
                 None
             else:
                 area.SetNeedRefill(True)
-            # area.UnFill()
-        # filler = ZONE_FILLER(self.pcb)
-        # filler.Fill(self.pcb.Zones())
 
     def CheckViaInAllAreas(self, via, all_areas):
-        """
-        Checks if an existing Via collides with another area
-        """
-        # Enum all area
+        """Check if an existing Via collides with another area"""
         for area in all_areas:
             area_layer = area.GetLayer()
+            area_layer_name = self.pcb.GetLayerName(area_layer)
             area_clearance = area.GetLocalClearance()
             area_priority = area.GetAssignedPriority()
             is_rules_area = area.GetIsRuleArea()
             is_rule_exclude_via_area = area.GetIsRuleArea() and area.GetDoNotAllowVias()
-            is_target_net = area.GetNetname() == self.netname  # (area.GetNetname().upper() == self.netname)
-            # wx.LogMessage(area.GetNetname()) #wx.LogMessage(area.GetNetname().upper())
+            is_target_net = area.GetNetname() == self.netname
 
-            if not is_target_net or is_rule_exclude_via_area:  # Only process areas that are not in the target net or is a rule area that could exlude vias
-                # print("Process...")
-                # Offset is half the size of the via plus the clearance of the via or the area
+            # Check if this layer should be ignored
+            layer_is_ignored = area_layer_name in self.ignored_layers
+
+            if not is_target_net or is_rule_exclude_via_area:
                 offset = max(self.clearance, area_clearance) + self.size / 2
-                for dx in [-offset, offset]:
-                    # All 4 corners of the via are testet (upper, lower, left, right) but not the center
-                    for dy in [-offset, offset]:
-                        point_to_test = VECTOR2I(int(via.PosX + dx), int(via.PosY + dy))
+                # Test center point AND 4 corners to catch all cases
+                test_offsets = [(0, 0), (-offset, -offset), (-offset, offset), (offset, -offset), (offset, offset)]
+                for dx, dy in test_offsets:
+                    point_to_test = VECTOR2I(int(via.PosX + dx), int(via.PosY + dy))
 
-                        hit_test_area = False
-                        if Version() < "7":
-                            # below 7.0.0
-                            for layer_id in area.GetLayerSet().CuStack():
-                                hit_test_area = hit_test_area or area.HitTestFilledArea(layer_id, point_to_test)  # Collides with a filled area
+                    hit_test_area = False
+                    if Version() < "7":
+                        for layer_id in area.GetLayerSet().CuStack():
+                            hit_test_area = hit_test_area or area.HitTestFilledArea(layer_id, point_to_test)
+                    else:
+                        for layer_id in area.GetLayerSet().CuStack():
+                            for i in range(0, area.Outline().OutlineCount()):
+                                area_outline = area.Outline().Outline(i)
+                                if area.GetLayerSet().Contains(layer_id) and (layer_id != Edge_Cuts):
+                                    hit_test_area = hit_test_area or area_outline.PointInside(point_to_test)
+
+                    hit_test_edge = area.HitTestForEdge(point_to_test, 1)
+                    try:
+                        hit_test_zone = area.HitTestInsideZone(point_to_test)
+                    except:
+                        hit_test_zone = False
+
+                    if is_rule_exclude_via_area and (hit_test_area or hit_test_edge or hit_test_zone):
+                        return self.REASON_KEEPOUT
+
+                    elif (not layer_is_ignored) and (hit_test_area or hit_test_edge) and not is_rules_area:
+                        return self.REASON_OTHER_SIGNAL
+
+                    elif (not layer_is_ignored) and hit_test_zone and not is_rules_area:
+                        target_areas_on_same_layer = filter(
+                            lambda x: ((x.GetPriority() > area_priority) and (x.GetLayer() == area_layer) and (x.GetNetname() == self.netname)), all_areas
+                        )
+                        for area_with_higher_priority in target_areas_on_same_layer:
+                            if area_with_higher_priority.HitTestInsideZone(point_to_test):
+                                break
                         else:
-                            # 7.0.0 and above
-                            for layer_id in area.GetLayerSet().CuStack():
-                                for i in range(0, area.Outline().OutlineCount()):
-                                    area_outline = area.Outline().Outline(i)
-                                    if area.GetLayerSet().Contains(layer_id) and (layer_id != Edge_Cuts):
-                                        hit_test_area = hit_test_area or area_outline.PointInside(point_to_test)
-                        hit_test_edge = area.HitTestForEdge(point_to_test, 1)  # Collides with an edge/corner
-                        try:
-                            hit_test_zone = area.HitTestInsideZone(point_to_test)  # Is inside a zone (e.g. KeepOut/Rules)
-                        except:
-                            hit_test_zone = False
-                            # wxPrint('exception: missing HitTestInsideZone: To Be Fixed (not available in kicad 7.0)')
-                            # hit_test_zone   = area.HitTest(point_to_test)
-
-                        # Is inside a zone (e.g. KeepOut/Rules with via exlusion) kicad
-                        if is_rule_exclude_via_area and (hit_test_area or hit_test_edge or hit_test_zone):
-                            return self.REASON_KEEPOUT  # Collides with keepout/rules
-
-                        elif (not self.via_through_areas) and (hit_test_area or hit_test_edge) and not is_rules_area:
-                            # Collides with another signal (e.g. on another layer) but not a rule zone
                             return self.REASON_OTHER_SIGNAL
-
-                        elif (not self.via_through_areas) and hit_test_zone and not is_rules_area:
-                            # Check if the zone is higher priority than other zones of the target net in the same point
-                            # target_areas_on_same_layer = filter(lambda x: ((x.GetPriority() > area_priority) and (x.GetLayer() == area_layer) and (x.GetNetname().upper() == self.netname)), all_areas)
-                            target_areas_on_same_layer = filter(
-                                lambda x: ((x.GetPriority() > area_priority) and (x.GetLayer() == area_layer) and (x.GetNetname() == self.netname)), all_areas
-                            )
-                            for area_with_higher_priority in target_areas_on_same_layer:
-                                if area_with_higher_priority.HitTestInsideZone(point_to_test):
-                                    break  # Area of target net has higher priority on this layer
-                            else:
-                                # Collides with another signal (e.g. on another layer)
-                                return self.REASON_OTHER_SIGNAL
 
         return self.REASON_OK
 
     def ClearViaInStepSize(self, rectangle, x, y, distance):
-        """
-        Stepsize==0
-            O O O O O O O O O
-            O O O O O O O O O
-            O O O O O O O O O
-            O O O O O O O O O
-            O O O O O O O O O
-            O O O O O O O O O
-            O O O O O O O O O
-
-        Standard
-            O   O   O   O   O
-
-            O   O   O   O   O
-
-            O   O   O   O   O
-
-            O   O   O   O   O
-
-        Star
-            O   O   O   O   O
-              O   O   O   O
-            O   O   O   O   O
-              O   O   O   O
-            O   O   O   O   O
-              O   O   O   O
-            O   O   O   O   O
-        """
+        """Clear nearby grid positions after placing a via (for Staggered pattern)"""
         for x_pos in range(x - distance, x + distance + 1):
             if (x_pos >= 0) and (x_pos < len(rectangle)):
-                # Star or Standard shape
-                distance_y = distance - abs(x - x_pos) if self.fill_type == self.FILL_TYPE_STAR else distance
+                distance_y = distance - abs(x - x_pos) if self.fill_type == self.FILL_TYPE_STAGGERED else distance
                 for y_pos in range(y - distance_y, y + distance_y + 1):
                     if (y_pos >= 0) and (y_pos < len(rectangle[0])):
                         if (x_pos == x) and (y_pos == y):
                             continue
                         rectangle[x_pos][y_pos] = self.REASON_STEP
 
-    """
-    Check if vias would not overlap and if in same outline then apply at minimum 60% of self.step
-    """
-
     def CheckViaDistance(self, p, via, outline):
+        """Check if vias would not overlap"""
         p2 = VECTOR2I(via.GetPosition())
-
         dist = self.clearance + self.size / 2 + via.GetWidth() / 2
-
-        # If via in same outline, then apply bigger space
         if outline.Collide(p2):
             dist = int(max(dist, self.step * 0.6))
-
         return (p - p2).EuclideanNorm() >= dist
 
-    """
-    Add via along outline (SHAPE_LINE_CHAIN), starting at offset (fraction between 0.0 and 1.0)
-    Avoid placing vias to close to via present in all_vias
-    """
-
     def AddViasAlongOutline(self, outline, outline_parent, all_vias, offset=0):
+        """Add vias along outline for Concentric/Outline patterns"""
         via_placed = 0
         step = max(self.step, self.size + self.clearance)
-        len = int(outline.Length())
-        steps = len // step
+        len_outline = int(outline.Length())
+        steps = len_outline // step
         steps = 1 if steps == 0 else steps
-        stepsize = int(len // steps)
-        for l in range(int(stepsize * offset), len, stepsize):
+        stepsize = int(len_outline // steps)
+        for l in range(int(stepsize * offset), len_outline, stepsize):
             p = outline.PointAlong(l)
-
             if all(self.CheckViaDistance(p, via, outline_parent) for via in all_vias):
                 via = self.AddVia(p, 0, 0)
                 all_vias.append(via)
@@ -430,12 +492,16 @@ STEP         = '-'
         return via_placed
 
     def ConcentricFillVias(self):
-
+        """Fill vias using Concentric/Outline pattern"""
         wxPrint("Calculate placement areas")
 
         zones = [zone for zone in self.pcb.Zones() if zone.GetNetname() == self.netname]
+        if not zones:
+            wxPrint("No zones matching criteria found")
+            return 0
+
         self.parent_area = zones[0]
-        # Create set of polygons where fill zones overlap on all layers
+
         poly_set = None
         for layer_id in self.pcb.GetEnabledLayers().CuStack():
             poly_set_layer = SHAPE_POLY_SET()
@@ -443,10 +509,8 @@ STEP         = '-'
                 if zone.IsOnLayer(layer_id):
                     if poly_set is not None or not self.only_selected_area or zone.IsSelected():
                         if Version() < "7":
-                            # below 7.0.0
                             poly_set_layer.Append(zone.RawPolysList(layer_id))
                         else:
-                            # 7.0.0 and above
                             poly_set_layer.Append(zone.Outline())
 
             if poly_set is None:
@@ -459,16 +523,13 @@ STEP         = '-'
                 wxPrint("No areas to fill")
                 return
 
-        # Size the polygons so the vias fit inside
         poly_set.Inflate(int(-(1 * self.clearance + 0.5 * self.size)), CORNER_STRATEGY_CHAMFER_ALL_CORNERS, FromMM(0.01))
 
         wxPrint("Generating concentric via placement")
-        # Get all vias from the selected net
         all_vias = [track for track in self.pcb.GetTracks() if (track.GetClass() == "PCB_VIA" and track.GetNetname() == self.netname)]
 
         off = 0
         via_placed = 0
-        # Place vias along all outlines and holes
         while poly_set.OutlineCount() > 0:
             for i in range(0, poly_set.OutlineCount()):
                 outline = poly_set.Outline(i)
@@ -479,7 +540,6 @@ STEP         = '-'
                         hole = poly_set.Hole(i, k)
                         via_placed += self.AddViasAlongOutline(hole, outline, all_vias, off)
 
-            # Size the polygons to place the next ring
             if self.fill_type == self.FILL_TYPE_CONCENTRIC:
                 poly_set.Inflate(int(-max(self.step, self.size + self.clearance)), CORNER_STRATEGY_CHAMFER_ALL_CORNERS, FromMM(0.01))
                 off = 0.5 if off == 0 else 0
@@ -488,119 +548,211 @@ STEP         = '-'
 
         self.RefillBoardAreas()
 
-        msg = "Done. {:d} vias placed. You have to refill all your pcb's areas/zones !!!".format(via_placed)
+        msg = "Done. {:d} vias placed. Remember to refill zones (press 'B').".format(via_placed)
         wxPrint(msg)
 
         return via_placed
 
-    """
-    Main function which does the via placement or deletion
-    """
+    def BuildSpatialIndex(self, all_pads, all_tracks, max_clearance, keepout_zones=None):
+        """Build spatial hash index for O(1) collision detection"""
+        cell_size = max(self.step, self.size + self.clearance) * 2
+        self.spatial_hash = SpatialHash(cell_size)
+
+        # Index keepout zones (rule areas with via exclusion)
+        if keepout_zones:
+            for zone in keepout_zones:
+                self.spatial_hash.insert_zone(zone, "keepout")
+
+        # Index all pads
+        for pad in all_pads:
+            x, y = pad.GetPosition().x, pad.GetPosition().y
+            max_size = max(pad.GetSize().x, pad.GetSize().y)
+            radius = max_size / 2 + max(pad.GetOwnClearance(UNDEFINED_LAYER, ""), self.clearance, max_clearance) + self.size / 2
+            self.spatial_hash.insert(x, y, radius, "pad")
+
+            # Also add hole clearance if pad has a hole
+            if hasattr(pad, 'GetDrillSize'):
+                drill = pad.GetDrillSize()
+                if drill.x > 0 or drill.y > 0:
+                    hole_radius = max(drill.x, drill.y) / 2 + self.hole_clearance + self.drill / 2
+                    self.spatial_hash.insert(x, y, hole_radius, "hole")
+
+        # Index all tracks and vias
+        for track in all_tracks:
+            if self.same_net_tracks and not isinstance(track, PCB_VIA) and track.GetNetname() == self.netname:
+                continue
+
+            clearance = max(track.GetOwnClearance(UNDEFINED_LAYER, ""), self.clearance, max_clearance) + self.size / 2 + track.GetWidth() / 2
+
+            if isinstance(track, PCB_VIA):
+                x, y = track.GetPosition().x, track.GetPosition().y
+                self.spatial_hash.insert(x, y, clearance, "via")
+                # Add hole clearance for via drill
+                hole_radius = track.GetDrill() / 2 + self.hole_clearance + self.drill / 2
+                self.spatial_hash.insert(x, y, hole_radius, "hole")
+            else:
+                # Track segment - add as series of circles along the track
+                start = track.GetStart()
+                end = track.GetEnd()
+                length = math.sqrt((end.x - start.x) ** 2 + (end.y - start.y) ** 2)
+                if length > 0:
+                    steps = max(1, int(length / (clearance / 2)))
+                    for i in range(steps + 1):
+                        t = i / steps
+                        x = start.x + t * (end.x - start.x)
+                        y = start.y + t * (end.y - start.y)
+                        self.spatial_hash.insert(x, y, clearance, "track")
+
+    def CheckPositionWithSpatialIndex(self, x, y):
+        """Check if position is valid using spatial index"""
+        via_radius = self.size / 2 + self.clearance
+        # Check against obstacles (pads, tracks, vias)
+        if self.spatial_hash.check_collision(x, y, via_radius):
+            return False
+        # Check against keepout zones
+        if self.spatial_hash.check_keepout_zones(x, y):
+            return False
+        return True
+
+    def FindNudgedPosition(self, x, y, max_nudge_distance):
+        """
+        Spiral search to find valid position near (x,y).
+        Returns (new_x, new_y, True) if found, or (x, y, False) if not.
+        """
+        nudge_step = self.clearance / 2  # Small steps for nudge search
+
+        # Spiral outward
+        for distance in range(1, int(max_nudge_distance / nudge_step) + 1):
+            radius = distance * nudge_step
+            # Check points around the circle at this radius
+            num_points = max(8, int(2 * math.pi * distance))
+            for i in range(num_points):
+                angle = 2 * math.pi * i / num_points
+                nx = x + radius * math.cos(angle)
+                ny = y + radius * math.sin(angle)
+
+                if self.CheckPositionWithSpatialIndex(nx, ny):
+                    return (nx, ny, True)
+
+        return (x, y, False)
+
+    def GetNextGroupNumber(self):
+        """Get the next available group number for this net"""
+        max_num = 0
+        prefix = f"ViaStitching {self.netname} #"
+
+        for group in self.pcb.Groups():
+            name = group.GetName()
+            if name.startswith(prefix):
+                try:
+                    num = int(name[len(prefix):])
+                    max_num = max(max_num, num)
+                except ValueError:
+                    pass
+
+        return max_num + 1
 
     def Run(self):
+        """Main function which does the via placement or deletion"""
 
-        VIA_GROUP_NAME = "ViaStitching {}".format(self.netname)
+        # Enhancement: Use numbered groups
+        group_num = self.GetNextGroupNumber()
+        VIA_GROUP_NAME = f"ViaStitching {self.netname} #{group_num}"
 
         if self.debug:
-            print("Enumerate groups")
-        for i in self.pcb.Groups():
-            if i.GetName() == VIA_GROUP_NAME:
-                if self.debug:
-                    print("Group {} Found !".format(VIA_GROUP_NAME))
-                self.pcb_group = i
+            print("Creating new group: " + VIA_GROUP_NAME)
 
-        """
-        Launch the process
-        """
+        # Handle delete mode
         if self.delete_vias:
-            # Do not perform a real delete since exposed function in python are not safe for deletion
             wx.MessageBox(
-                "To delete vias:\n - select one of the generated via to select the group of vias named {}\n - hit delete key\n - That's all !".format(VIA_GROUP_NAME), "Information"
+                f"To delete vias:\n"
+                f" - Use the Group Management section in the dialog, or\n"
+                f" - Select one via to select its group, then press Delete\n\n"
+                f"Groups are named like 'ViaStitching {self.netname} #1'",
+                "Information"
             )
-
-            """
-            if self.pcb_group is not None:
-                all_vias = [track for track in self.pcb.GetTracks() if (track.GetClass() == "PCB_VIA" and track.GetNetname() == self.netname)]
-                for via in all_vias:
-                    if via.GetParentGroup() is not None and via.GetParentGroup().GetName() == VIA_GROUP_NAME:
-                        via.DeleteStructure()
-
-            """
-            return  # no need to run the rest of logic
-
-        if self.pcb_group is None:
-            self.pcb_group = PCB_GROUP(None)
-            self.pcb_group.SetName(VIA_GROUP_NAME)
-            self.pcb.Add(self.pcb_group)
-
-        if self.fill_type == self.FILL_TYPE_CONCENTRIC or self.fill_type == self.FILL_TYPE_OUTLINE or self.fill_type == self.FILL_TYPE_OUTLINE_NO_HOLES:
-            self.ConcentricFillVias()
-            if self.filename:
-                self.pcb.Save(self.filename)
-
             return
 
+        # Create new group for this run
+        self.pcb_group = PCB_GROUP(None)
+        self.pcb_group.SetName(VIA_GROUP_NAME)
+        self.pcb.Add(self.pcb_group)
+
+        # Handle Concentric/Outline patterns (original algorithm)
+        if self.fill_type in [self.FILL_TYPE_CONCENTRIC, self.FILL_TYPE_OUTLINE, self.FILL_TYPE_OUTLINE_NO_HOLES]:
+            result = self.ConcentricFillVias()
+            if self.filename:
+                self.pcb.Save(self.filename)
+            return result
+
+        # Rectangular/Staggered pattern with enhancements
         if self.debug:
-            print("%s: Line %u" % (time.time(), currentframe().f_lineno))
+            print("%s: Starting rectangular/staggered fill" % time.time())
+
         target_tracks = self.pcb.GetTracks()
-        if self.debug:
-            print("%s: Line %u" % (time.time(), currentframe().f_lineno))
-
         lboard = self.pcb.ComputeBoundingBox(False)
-        if self.debug:
-            print("%s: Line %u" % (time.time(), currentframe().f_lineno))
         origin = lboard.GetPosition()
-        if self.debug:
-            print("%s: Line %u" % (time.time(), currentframe().f_lineno))
 
-        # Create an initial rectangle: all is set to "REASON_NO_SIGNAL"
-        # get a margin to avoid out of range
         l_clearance = self.clearance + self.size
         if l_clearance < self.step:
             l_clearance = self.step
 
+        # For Staggered pattern: use finer grid so spacing ≈ user's step value
+        # With clear_distance=1, actual spacing ≈ 2 × l_clearance
+        # So use l_clearance = step / 2
+        if self.fill_type == self.FILL_TYPE_STAGGERED and self.step > 0:
+            target_clearance = self.step // 2
+            min_clearance = self.clearance + self.size
+            l_clearance = max(target_clearance, min_clearance)
+
         x_limit = int((lboard.GetWidth() + l_clearance) / l_clearance) + 1
         y_limit = int((lboard.GetHeight() + l_clearance) / l_clearance) + 1
-        if self.debug:
-            print(
-                "l_clearance : {}; step : {}; size: {}; clearance: {}; x/y_limit ({} {}),board size : {} {}".format(
-                    l_clearance, self.step, self.size, self.clearance, x_limit, y_limit, lboard.GetWidth(), lboard.GetHeight()
-                )
-            )
-        rectangle = [[self.REASON_NO_SIGNAL] * y_limit for i in xrange(x_limit)]
 
         if self.debug:
-            print("\nInitial rectangle:")
-            self.PrintRect(rectangle)
+            print(f"Grid size: {x_limit} x {y_limit} = {x_limit * y_limit} positions")
+
+        rectangle = [[self.REASON_NO_SIGNAL] * y_limit for i in xrange(x_limit)]
 
         all_pads = self.pcb.GetPads()
         all_tracks = self.pcb.GetTracks()
-        if self.debug:
-            print("%s: Line %u" % (time.time(), currentframe().f_lineno))
+
         try:
             all_drawings = filter(lambda x: x.GetClass() == "PTEXT" and self.pcb.GetLayerID(x.GetLayerName()) in (F_Cu, B_Cu), self.pcb.DrawingsList())
         except:
             all_drawings = filter(lambda x: x.GetClass() == "PTEXT" and self.pcb.GetLayerID(x.GetLayerName()) in (F_Cu, B_Cu), self.pcb.Drawings())
-            # wxPrint("exception on missing BOARD.DrawingsList")
-        all_areas = [self.pcb.GetArea(i) for i in xrange(self.pcb.GetAreaCount())]
-        # target_areas    = filter(lambda x: (x.GetNetname().upper() == self.netname), all_areas)         # KeepOuts are filtered because they have no name
-        # KeepOuts are filtered because they have no name
-        target_areas = filter(lambda x: (x.GetNetname() == self.netname), all_areas)
 
-        # Get the board outline and size with
+        # Use Zones() which includes rule areas in KiCad 8+
+        # Also collect zones embedded in footprints (rule areas in footprints)
+        all_areas = list(self.pcb.Zones())
+        for footprint in self.pcb.GetFootprints():
+            try:
+                for zone in footprint.Zones():
+                    all_areas.append(zone)
+            except:
+                pass  # Older KiCad versions may not have footprint zones
+        target_areas = list(filter(lambda x: (x.GetNetname() == self.netname), all_areas))
+
         board_edge = SHAPE_POLY_SET()
         self.pcb.GetBoardPolygonOutlines(board_edge)
         b_clearance = max(self.pcb.GetDesignSettings().m_CopperEdgeClearance, self.clearance) + self.size
         board_edge.Deflate(int(b_clearance), CORNER_STRATEGY_ROUND_ALL_CORNERS, FromMM(0.01))
 
-        via_list = []  # Create a list of existing vias => faster than scanning through the whole rectangle
+        via_list = []
         max_target_area_clearance = 0
 
-        # Enum all target areas (Search possible positions for vias on the target net)
+        # Create progress dialog
+        total_steps = x_limit
+        self.progress_dialog = wx.ProgressDialog(
+            "Via Stitching",
+            "Finding valid positions...",
+            maximum=total_steps,
+            style=wx.PD_CAN_ABORT | wx.PD_AUTO_HIDE | wx.PD_ELAPSED_TIME | wx.PD_REMAINING_TIME
+        )
+        self.cancelled = False
+
+        # Phase 1: Find target area positions
+        wxPrint("Finding positions in target areas...")
         for area in target_areas:
-            if self.debug:
-                print("%s: Line %u" % (time.time(), currentframe().f_lineno))
-            wxPrint("Processing Target Area: %s, LayerName: %s..." % (area.GetNetname(), area.GetLayerName()))
             if self.parent_area is None:
                 self.parent_area = area
             is_selected_area = area.IsSelected()
@@ -608,77 +760,90 @@ STEP         = '-'
             if max_target_area_clearance < area_clearance:
                 max_target_area_clearance = area_clearance
 
-            if (not self.only_selected_area) or (self.only_selected_area and is_selected_area):  # All areas or only the selected area
-                # Check every possible point in the virtual coordinate system
-                if self.debug:
-                    print("%s: Line %u" % (time.time(), currentframe().f_lineno))
+            if (not self.only_selected_area) or (self.only_selected_area and is_selected_area):
                 for x in xrange(len(rectangle)):
                     if x % 10 == 0:
-                        if self.debug:
-                            print("%s: Line %u (x=%s;%s)" % (time.time(), currentframe().f_lineno, x, len(rectangle)))
+                        keep_going, _ = self.progress_dialog.Update(x, f"Scanning area: column {x}/{x_limit}")
+                        if not keep_going:
+                            self.cancelled = True
+                            break
+
                     for y in xrange(len(rectangle[0])):
-                        # No other "target area" found yet => go on with processing
                         if rectangle[x][y] == self.REASON_NO_SIGNAL:
-                            current_x = origin.x + (x * l_clearance)  # Center of the via
+                            current_x = origin.x + (x * l_clearance)
                             current_y = origin.y + (y * l_clearance)
 
-                            test_result = True  # Start with true, if a check fails, it is set to false
-
-                            # Offset is half the size of the via plus the clearance of the via or the area
-                            offset = 0  # Use an exact zone match
+                            test_result = True
+                            offset = 0
                             point_to_test = VECTOR2I(int(current_x), int(current_y))
+
                             hit_test_area = False
                             if Version() < "7":
-                                # below 7.0.0
-                                hit_test_area = area.HitTestFilledArea(area.GetLayer(), VECTOR2I(point_to_test), int(offset))  # Collides with a filled area
+                                hit_test_area = area.HitTestFilledArea(area.GetLayer(), VECTOR2I(point_to_test), int(offset))
                             else:
-                                # 7.0.0 and above
                                 for i in range(0, area.Outline().OutlineCount()):
                                     area_outline = area.Outline().Outline(i)
                                     hit_test_area = hit_test_area or area_outline.PointInside(point_to_test)
-                            # Collides with an edge/corner
-                            hit_test_edge = area.HitTestForEdge(point_to_test, int(max(area_clearance, offset)))
-                            # test_result only remains true if the via is inside an area and not on an edge
-                            test_result = hit_test_area and not hit_test_edge
 
-                            test_result = test_result and board_edge.Collide(point_to_test)  # check if inside board outline
+                            hit_test_edge = area.HitTestForEdge(point_to_test, int(max(area_clearance, offset)))
+                            test_result = hit_test_area and not hit_test_edge
+                            test_result = test_result and board_edge.Collide(point_to_test)
 
                             if test_result:
-                                # Create a via object with information about the via and place it in the rectangle
                                 via_obj = ViaObject(x=x, y=y, pos_x=current_x, pos_y=current_y)
                                 rectangle[x][y] = via_obj
                                 via_list.append(via_obj)
 
-        if self.debug:
-            print("\nPost target areas:")
-            self.PrintRect(rectangle)
+                if self.cancelled:
+                    break
 
-        # Enum all vias
-        if self.debug:
-            print("%s: Line %u" % (time.time(), currentframe().f_lineno))
-        wxPrint("Processing all vias of target area...")
-        for via in via_list:
+        if self.cancelled:
+            self.progress_dialog.Destroy()
+            wxPrint("Via stitching cancelled by user")
+            return 0
+
+        # Phase 2: Check against other areas
+        self.progress_dialog.Update(0, "Checking against other areas...")
+        wxPrint("Checking against other areas...")
+        for idx, via in enumerate(via_list):
+            if idx % 100 == 0:
+                keep_going, _ = self.progress_dialog.Update(
+                    int(idx * total_steps / len(via_list)) if via_list else 0,
+                    f"Checking areas: {idx}/{len(via_list)}"
+                )
+                if not keep_going:
+                    self.cancelled = True
+                    break
+
             reason = self.CheckViaInAllAreas(via, all_areas)
             if reason != self.REASON_OK:
                 rectangle[via.X][via.Y] = reason
 
-        if self.debug:
-            print("\nPost areas:")
-            self.PrintRect(rectangle)
+        if self.cancelled:
+            self.progress_dialog.Destroy()
+            wxPrint("Via stitching cancelled by user")
+            return 0
 
-        # Same job with all pads => all pads on all layers
-        wxPrint("Processing all pads...")
-        if self.debug:
-            print("%s: Line %u" % (time.time(), currentframe().f_lineno))
+        # Collect keepout zones (rule areas that exclude vias)
+        keepout_zones = [area for area in all_areas
+                         if area.GetIsRuleArea() and area.GetDoNotAllowVias()]
+        wxPrint(f"Found {len(keepout_zones)} keepout zone(s) that exclude vias")
+
+        # Build spatial index for collision detection
+        wxPrint("Building spatial index...")
+        self.BuildSpatialIndex(all_pads, all_tracks, max_target_area_clearance, keepout_zones)
+
+        # Phase 3: Check against pads (using spatial index)
+        self.progress_dialog.Update(0, "Checking against pads...")
+        wxPrint("Checking against pads...")
         for pad in all_pads:
             local_offset = max(pad.GetOwnClearance(UNDEFINED_LAYER, ""), self.clearance, max_target_area_clearance) + (self.size / 2)
             max_size = max(pad.GetSize().x, pad.GetSize().y)
 
-            start_x = int(floor(((pad.GetPosition().x - (max_size / 2.0 + local_offset)) - origin.x) / l_clearance))
-            stop_x = int(ceil(((pad.GetPosition().x + (max_size / 2.0 + local_offset)) - origin.x) / l_clearance))
-
-            start_y = int(floor(((pad.GetPosition().y - (max_size / 2.0 + local_offset)) - origin.y) / l_clearance))
-            stop_y = int(ceil(((pad.GetPosition().y + (max_size / 2.0 + local_offset)) - origin.y) / l_clearance))
+            start_x = int(math.floor(((pad.GetPosition().x - (max_size / 2.0 + local_offset)) - origin.x) / l_clearance))
+            stop_x = int(math.ceil(((pad.GetPosition().x + (max_size / 2.0 + local_offset)) - origin.x) / l_clearance))
+            start_y = int(math.floor(((pad.GetPosition().y - (max_size / 2.0 + local_offset)) - origin.y) / l_clearance))
+            stop_y = int(math.ceil(((pad.GetPosition().y + (max_size / 2.0 + local_offset)) - origin.y) / l_clearance))
 
             for x in range(start_x, stop_x + 1):
                 for y in range(start_y, stop_y + 1):
@@ -688,59 +853,33 @@ STEP         = '-'
                             start_rect = VECTOR2I(int(origin.x + (l_clearance * x) - local_offset), int(origin.y + (l_clearance * y) - local_offset))
                             if pad.HitTest(BOX2I(start_rect, size_rect), False):
                                 rectangle[x][y] = self.REASON_PAD
-                            else:
-                                # Hit test doesn't handle large pads. This following should fix that.
-                                m = PCB_VIA(self.parent_area)
-                                m.SetPosition(VECTOR2I(int(origin.x + (l_clearance * x)), int(origin.y + (l_clearance * y))))
-                                m.SetNet(self.target_net)
-                                m.SetViaType(VIATYPE_THROUGH)
-                                m.SetDrill(int(self.drill))
-                                m.SetWidth(int(self.size))
-                                if pad.GetEffectivePolygon(pad.GetLayer()).Collide(m.GetEffectiveShape()):
-                                    rectangle[x][y] = self.REASON_PAD
-
                     except:
-                        wxPrint("exception on Processing all pads...")
-        if self.debug:
-            print("\nPost pads:")
-            self.PrintRect(rectangle)
+                        pass
 
-        # Same job with tracks => all tracks on all layers
-        wxPrint("Processing all tracks...")
-        if self.debug:
-            print("%s: Line %u" % (time.time(), currentframe().f_lineno))
+        # Phase 4: Check against tracks
+        self.progress_dialog.Update(0, "Checking against tracks...")
+        wxPrint("Checking against tracks...")
         for track in all_tracks:
             if self.same_net_tracks:
                 if not isinstance(track, PCB_VIA) and track.GetNetname() == self.netname:
                     continue
+
             start_x = track.GetStart().x
             start_y = track.GetStart().y
-
             stop_x = track.GetEnd().x
             stop_y = track.GetEnd().y
 
             if start_x > stop_x:
-                d = stop_x
-                stop_x = start_x
-                start_x = d
-
+                start_x, stop_x = stop_x, start_x
             if start_y > stop_y:
-                d = stop_y
-                stop_y = start_y
-                start_y = d
-
-            osx = start_x
-            osy = start_y
-            opx = stop_x
-            opy = stop_y
+                start_y, stop_y = stop_y, start_y
 
             clearance = max(track.GetOwnClearance(UNDEFINED_LAYER, ""), self.clearance, max_target_area_clearance) + (self.size / 2) + (track.GetWidth() / 2)
 
-            start_x = int(floor(((start_x - clearance) - origin.x) / l_clearance))
-            stop_x = int(ceil(((stop_x + clearance) - origin.x) / l_clearance))
-
-            start_y = int(floor(((start_y - clearance) - origin.y) / l_clearance))
-            stop_y = int(ceil(((stop_y + clearance) - origin.y) / l_clearance))
+            start_x = int(math.floor(((start_x - clearance) - origin.x) / l_clearance))
+            stop_x = int(math.ceil(((stop_x + clearance) - origin.x) / l_clearance))
+            start_y = int(math.floor(((start_y - clearance) - origin.y) / l_clearance))
+            stop_y = int(math.ceil(((stop_y + clearance) - origin.y) / l_clearance))
 
             for x in range(start_x, stop_x + 1):
                 for y in range(start_y, stop_y + 1):
@@ -751,41 +890,49 @@ STEP         = '-'
                             if track.HitTest(BOX2I(start_rect, size_rect), False):
                                 rectangle[x][y] = self.REASON_TRACK
                     except:
-                        wxPrint("exception on Processing all tracks...")
+                        pass
 
-        if self.debug:
-            print("\nPost tracks:")
-            self.PrintRect(rectangle)
-
-        # Same job with existing text
-        wxPrint("Processing all existing drawings...")
-        if self.debug:
-            print("%s: Line %u" % (time.time(), currentframe().f_lineno))
+        # Phase 5: Check against drawings
+        wxPrint("Checking against drawings...")
         for draw in all_drawings:
             inter = float(self.clearance + self.size) / 2
             bbox = draw.GetBoundingBox()
 
-            start_x = int(floor(((bbox.GetPosition().x - inter) - origin.x) / l_clearance))
-            stop_x = int(ceil(((bbox.GetPosition().x + (bbox.GetSize().x + inter)) - origin.x) / l_clearance))
-
-            start_y = int(floor(((bbox.GetPosition().y - inter) - origin.y) / l_clearance))
-            stop_y = int(ceil(((bbox.GetPosition().y + (bbox.GetSize().y + inter)) - origin.y) / l_clearance))
+            start_x = int(math.floor(((bbox.GetPosition().x - inter) - origin.x) / l_clearance))
+            stop_x = int(math.ceil(((bbox.GetPosition().x + (bbox.GetSize().x + inter)) - origin.x) / l_clearance))
+            start_y = int(math.floor(((bbox.GetPosition().y - inter) - origin.y) / l_clearance))
+            stop_y = int(math.ceil(((bbox.GetPosition().y + (bbox.GetSize().y + inter)) - origin.y) / l_clearance))
 
             for x in range(start_x, stop_x):
                 for y in range(start_y, stop_y):
-                    rectangle[x][y] = self.REASON_DRAWING
+                    try:
+                        rectangle[x][y] = self.REASON_DRAWING
+                    except:
+                        pass
 
-        if self.debug:
-            print("Post Drawnings:")
-            self.PrintRect(rectangle)
+        # Phase 6: Place vias
+        self.progress_dialog.Update(0, "Placing vias...")
+        wxPrint("Placing vias...")
 
         clear_distance = 0
-        if self.step != 0.0 and self.fill_type == self.FILL_TYPE_STAR:
-            # How much "via steps" should be removed around a via (round up)
-            clear_distance = int((self.step + l_clearance) / l_clearance)
+        if self.step != 0.0 and self.fill_type == self.FILL_TYPE_STAGGERED:
+            # With l_clearance = step/2, clear_distance = 1 gives spacing ≈ step
+            clear_distance = 1
 
         via_placed = 0
+        nudged_count = 0
+        max_nudge_distance = self.step / 2
+
         for x in xrange(len(rectangle)):
+            if x % 5 == 0:
+                keep_going, _ = self.progress_dialog.Update(
+                    int(x * total_steps / len(rectangle)),
+                    f"Placing vias: column {x}/{len(rectangle)}, {via_placed} placed"
+                )
+                if not keep_going:
+                    self.cancelled = True
+                    break
+
             for y in xrange(len(rectangle[0])):
                 if isinstance(rectangle[x][y], ViaObject):
                     if clear_distance:
@@ -800,27 +947,46 @@ STEP         = '-'
                         ran_x = (random.random() * max_offset) - (max_offset / 2.0)
                         ran_y = (random.random() * max_offset) - (max_offset / 2.0)
 
-                    self.AddVia(VECTOR2I(int(via.PosX + ran_x), int(via.PosY + ran_y)), via.X, via.Y)
-                    via_placed += 1
+                    final_x = via.PosX + ran_x
+                    final_y = via.PosY + ran_y
 
-        if self.debug:
-            print("\nFinal result:")
-            self.PrintRect(rectangle)
+                    # Enhancement: Use spatial index to verify position
+                    if self.CheckPositionWithSpatialIndex(final_x, final_y):
+                        self.AddVia(VECTOR2I(int(final_x), int(final_y)), via.X, via.Y)
+                        # Add placed via to spatial index
+                        self.spatial_hash.insert(final_x, final_y, self.size / 2 + self.clearance, "placed_via")
+                        via_placed += 1
+                    elif self.nudge_enabled:
+                        # Enhancement: Try nudge search
+                        nudged_x, nudged_y, found = self.FindNudgedPosition(final_x, final_y, max_nudge_distance)
+                        if found:
+                            self.AddVia(VECTOR2I(int(nudged_x), int(nudged_y)), via.X, via.Y)
+                            self.spatial_hash.insert(nudged_x, nudged_y, self.size / 2 + self.clearance, "placed_via")
+                            via_placed += 1
+                            nudged_count += 1
 
-        if self.debug:
-            print("%s: Line %u" % (time.time(), currentframe().f_lineno))
+        self.progress_dialog.Destroy()
+
+        if self.cancelled:
+            wxPrint(f"Via stitching cancelled. {via_placed} vias placed before cancellation.")
+            return via_placed
+
         self.RefillBoardAreas()
 
         if self.filename:
             self.pcb.Save(self.filename)
-        msg = "Done. {:d} vias placed. You have to refill all your pcb's areas/zones !!!".format(via_placed)
+
+        msg = f"Done! {via_placed} vias placed"
+        if nudged_count > 0:
+            msg += f" ({nudged_count} nudged from grid)"
+        msg += ". Remember to refill zones (press 'B')."
         wxPrint(msg)
+
+        return via_placed
 
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: %s <KiCad pcb filename>" % sys.argv[0])
     else:
-        import sys
-
         FillArea(sys.argv[1]).SetDebug().Run()
