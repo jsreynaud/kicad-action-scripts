@@ -299,15 +299,18 @@ class FillArea:
         return self
 
     def SetStepMM(self, s):
-        self.step = float(FromMM(s))
+        # Round to nearest nm to avoid floating-point rounding issues
+        self.step = round(FromMM(s))
         return self
 
     def SetSizeMM(self, s):
-        self.size = float(FromMM(s))
+        # Round to nearest nm to avoid floating-point rounding issues (DRC errors)
+        self.size = round(FromMM(s))
         return self
 
     def SetDrillMM(self, s):
-        self.drill = float(FromMM(s))
+        # Round to nearest nm to avoid floating-point rounding issues
+        self.drill = round(FromMM(s))
         return self
 
     def OnlyOnSelectedArea(self):
@@ -319,13 +322,15 @@ class FillArea:
         return self
 
     def SetClearanceMM(self, s):
-        self.clearance = float(FromMM(s))
+        # Round to nearest nm to avoid floating-point rounding issues
+        self.clearance = round(FromMM(s))
         return self
 
     # Enhancement: hole clearance
     def SetHoleClearanceMM(self, s):
         """Set minimum hole-to-hole clearance in mm"""
-        self.hole_clearance = float(FromMM(s))
+        # Round to nearest nm to avoid floating-point rounding issues
+        self.hole_clearance = round(FromMM(s))
         return self
 
     # Enhancement: nudge search toggle
@@ -716,10 +721,25 @@ STEP         = '-'
         all_pads = self.pcb.GetPads()
         all_tracks = self.pcb.GetTracks()
 
+        # Collect all drawings on copper layers (text and shapes)
+        # Get list of all copper layer IDs
+        copper_layers = set()
+        for layer_id in self.pcb.GetEnabledLayers().CuStack():
+            copper_layers.add(layer_id)
+
         try:
-            all_drawings = filter(lambda x: x.GetClass() == "PTEXT" and self.pcb.GetLayerID(x.GetLayerName()) in (F_Cu, B_Cu), self.pcb.DrawingsList())
+            drawings_list = list(self.pcb.DrawingsList())
         except:
-            all_drawings = filter(lambda x: x.GetClass() == "PTEXT" and self.pcb.GetLayerID(x.GetLayerName()) in (F_Cu, B_Cu), self.pcb.Drawings())
+            drawings_list = list(self.pcb.Drawings())
+
+        # Filter for text on copper layers (original behavior)
+        all_drawings = [d for d in drawings_list
+                        if d.GetClass() == "PTEXT" and d.GetLayer() in copper_layers]
+
+        # Collect copper graphics (shapes on copper layers) - these can cause shorts!
+        copper_graphics = [d for d in drawings_list
+                          if d.GetClass() == "PCB_SHAPE" and d.GetLayer() in copper_layers]
+        wxPrint(f"Found {len(copper_graphics)} graphic shape(s) on copper layers")
 
         # Use Zones() which includes rule areas in KiCad 8+
         # Also collect zones embedded in footprints (rule areas in footprints)
@@ -892,7 +912,7 @@ STEP         = '-'
                     except:
                         pass
 
-        # Phase 5: Check against drawings
+        # Phase 5: Check against drawings (text on copper)
         wxPrint("Checking against drawings...")
         for draw in all_drawings:
             inter = float(self.clearance + self.size) / 2
@@ -907,6 +927,32 @@ STEP         = '-'
                 for y in range(start_y, stop_y):
                     try:
                         rectangle[x][y] = self.REASON_DRAWING
+                    except:
+                        pass
+
+        # Phase 5b: Check against copper graphics (shapes on copper layers)
+        wxPrint(f"Checking against {len(copper_graphics)} copper graphic(s)...")
+        for shape in copper_graphics:
+            clearance = self.clearance + (self.size / 2)
+            bbox = shape.GetBoundingBox()
+
+            start_x = int(math.floor(((bbox.GetX() - clearance) - origin.x) / l_clearance))
+            stop_x = int(math.ceil(((bbox.GetX() + bbox.GetWidth() + clearance) - origin.x) / l_clearance))
+            start_y = int(math.floor(((bbox.GetY() - clearance) - origin.y) / l_clearance))
+            stop_y = int(math.ceil(((bbox.GetY() + bbox.GetHeight() + clearance) - origin.y) / l_clearance))
+
+            for x in range(start_x, stop_x + 1):
+                for y in range(start_y, stop_y + 1):
+                    try:
+                        if isinstance(rectangle[x][y], ViaObject):
+                            # Use HitTest for accurate collision with arbitrary shapes
+                            test_point = VECTOR2I(int(origin.x + (l_clearance * x)), int(origin.y + (l_clearance * y)))
+                            test_box = BOX2I(
+                                VECTOR2I(int(test_point.x - clearance), int(test_point.y - clearance)),
+                                VECTOR2I(int(2 * clearance), int(2 * clearance))
+                            )
+                            if shape.HitTest(test_box, False):
+                                rectangle[x][y] = self.REASON_DRAWING
                     except:
                         pass
 
