@@ -12,3 +12,10 @@ try:
 except Exception as e:
     traceback.print_exc(file=sys.stdout)
     pprint.pprint(e)
+
+print("Starting plugin Enhanced ViaStitching")
+try:
+    from .FillAreaActionEnhanced import *
+except Exception as e:
+    traceback.print_exc(file=sys.stdout)
+    pprint.pprint(e)
