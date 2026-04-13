@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ###########################################################################
-## Python code generated with wxFormBuilder (version 4.2.1-0-g80c4cb6)
+## Python code generated with wxFormBuilder (version 3.10.1-0-g8feb16b)
 ## http://www.wxformbuilder.org/
 ##
 ## PLEASE DO *NOT* EDIT THIS FILE!
@@ -17,7 +17,7 @@ import wx.xrc
 class FillAreaDialog ( wx.Dialog ):
 
 	def __init__( self, parent ):
-		wx.Dialog.__init__ ( self, parent, id = wx.ID_ANY, title = u"Fill Area parameters", pos = wx.DefaultPosition, size = wx.Size( 402,663 ), style = wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER )
+		wx.Dialog.__init__ ( self, parent, id = wx.ID_ANY, title = u"Fill Area parameters", pos = wx.DefaultPosition, size = wx.Size( 402,590 ), style = wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER )
 
 		self.SetSizeHints( wx.DefaultSize, wx.DefaultSize )
 
@@ -61,20 +61,10 @@ class FillAreaDialog ( wx.Dialog ):
 		self.m_StepMM = wx.TextCtrl( self, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0 )
 		fgSizer1.Add( self.m_StepMM, 1, wx.ALL|wx.EXPAND, 5 )
 
-		self.m_staticTextGridType = wx.StaticText( self, wx.ID_ANY, u"Grid Origin", wx.DefaultPosition, wx.DefaultSize, 0 )
-		self.m_staticTextGridType.Wrap( -1 )
-
-		fgSizer1.Add( self.m_staticTextGridType, 0, wx.ALL, 5 )
-
-		m_cbGridTypeChoices = [ u"Board Bounds", u"Absolute (0, 0)", u"Grid Origin" ]
-		self.m_cbGridType = wx.ComboBox( self, wx.ID_ANY, u"Board Bounds", wx.DefaultPosition, wx.DefaultSize, m_cbGridTypeChoices, wx.CB_READONLY )
-		self.m_cbGridType.SetSelection( 0 )
-		fgSizer1.Add( self.m_cbGridType, 0, wx.ALL|wx.EXPAND, 5 )
-
 
 		fgSizer1.Add( ( 0, 0), 1, wx.EXPAND, 5 )
 
-		self.m_bitmapStitching = wx.StaticBitmap( self, wx.ID_ANY, wx.Bitmap( u"stitching-vias-help.png", wx.BITMAP_TYPE_ANY ), wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.m_bitmapStitching = wx.StaticBitmap( self, wx.ID_ANY, wx.NullBitmap, wx.DefaultPosition, wx.DefaultSize, 0 )
 		fgSizer1.Add( self.m_bitmapStitching, 0, wx.EXPAND, 5 )
 
 		self.m_staticText6 = wx.StaticText( self, wx.ID_ANY, u"Net name", wx.DefaultPosition, wx.DefaultSize, 0 )

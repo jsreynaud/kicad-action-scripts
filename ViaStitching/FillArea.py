@@ -33,6 +33,20 @@ import wx
 from inspect import currentframe, getframeinfo
 import time
 
+# KiCad 10 compatibility: VIATYPE_THROUGH was removed from Python bindings
+try:
+    _ = VIATYPE_THROUGH
+except NameError:
+    VIATYPE_THROUGH = 3  # VIATYPE::THROUGH integer value
+
+
+def _kicad_version_major():
+    """Return KiCad major version as integer (e.g. 7, 8, 9, 10)."""
+    try:
+        return int(Version().split('.')[0])
+    except Exception:
+        return 0
+
 
 def wxPrint(msg):
     wx.LogMessage(msg)
@@ -107,10 +121,6 @@ class FillArea:
     REASON_DRAWING = 6
     REASON_STEP = 7
 
-    GRID_TYPE_BOARD_BOUNDS = "Board Bounds"
-    GRID_TYPE_ABSOLUTE = "Absolute (0, 0)"
-    GRID_TYPE_GRID_ORIGIN = "Grid Origin"
-
     FILL_TYPE_RECTANGULAR = "Rectangular"
     FILL_TYPE_STAR = "Star"
     FILL_TYPE_CONCENTRIC = "Concentric"
@@ -145,7 +155,6 @@ class FillArea:
         self.netname = None
         self.debug = False
         self.random = False
-        self.grid_type = self.GRID_TYPE_BOARD_BOUNDS
         self.fill_type = self.FILL_TYPE_RECTANGULAR
         if self.netname is None:
             self.SetNetname("GND")
@@ -178,20 +187,8 @@ class FillArea:
         self.same_net_tracks = r
         return self
 
-    def SetGridType(self, grid_type):
-        self.grid_type = grid_type
-        return self
-
-    def GetGridOrig(self, lboard):
-        if self.grid_type == self.GRID_TYPE_ABSOLUTE:
-            return VECTOR2I(0, 0)
-        elif self.grid_type == self.GRID_TYPE_GRID_ORIGIN:
-            return self.pcb.GetDesignSettings().GetGridOrigin()
-        else:
-            return lboard.GetPosition()
-
-    def SetFillType(self, fill_type):
-        self.fill_type = fill_type
+    def SetType(self, type):
+        self.fill_type = type
         return self
 
     def SetPCB(self, pcb):
@@ -297,7 +294,7 @@ STEP         = '-'
         for i in range(self.pcb.GetAreaCount()):
             area = self.pcb.GetArea(i)
             # No more making a real refill since it's crashing KiCad
-            if Version() < "7":
+            if _kicad_version_major() < 7:
                 None
             else:
                 area.SetNeedRefill(True)
@@ -329,7 +326,7 @@ STEP         = '-'
                         point_to_test = VECTOR2I(int(via.PosX + dx), int(via.PosY + dy))
 
                         hit_test_area = False
-                        if Version() < "7":
+                        if _kicad_version_major() < 7:
                             # below 7.0.0
                             for layer_id in area.GetLayerSet().CuStack():
                                 hit_test_area = hit_test_area or area.HitTestFilledArea(layer_id, point_to_test)  # Collides with a filled area
@@ -341,12 +338,10 @@ STEP         = '-'
                                     if area.GetLayerSet().Contains(layer_id) and (layer_id != Edge_Cuts):
                                         hit_test_area = hit_test_area or area_outline.PointInside(point_to_test)
                         hit_test_edge = area.HitTestForEdge(point_to_test, 1)  # Collides with an edge/corner
-                        try:
+                        if hasattr(area, 'HitTestInsideZone'):
                             hit_test_zone = area.HitTestInsideZone(point_to_test)  # Is inside a zone (e.g. KeepOut/Rules)
-                        except:
-                            hit_test_zone = False
-                            # wxPrint('exception: missing HitTestInsideZone: To Be Fixed (not available in kicad 7.0)')
-                            # hit_test_zone   = area.HitTest(point_to_test)
+                        else:
+                            hit_test_zone = area.HitTest(point_to_test)  # KiCad 10+: use HitTest instead
 
                         # Is inside a zone (e.g. KeepOut/Rules with via exlusion) kicad
                         if is_rule_exclude_via_area and (hit_test_area or hit_test_edge or hit_test_zone):
@@ -358,12 +353,12 @@ STEP         = '-'
 
                         elif (not self.via_through_areas) and hit_test_zone and not is_rules_area:
                             # Check if the zone is higher priority than other zones of the target net in the same point
-                            # target_areas_on_same_layer = filter(lambda x: ((x.GetPriority() > area_priority) and (x.GetLayer() == area_layer) and (x.GetNetname().upper() == self.netname)), all_areas)
                             target_areas_on_same_layer = filter(
-                                lambda x: ((x.GetPriority() > area_priority) and (x.GetLayer() == area_layer) and (x.GetNetname() == self.netname)), all_areas
+                                lambda x: ((x.GetAssignedPriority() > area_priority) and (x.GetLayer() == area_layer) and (x.GetNetname() == self.netname)), all_areas
                             )
+                            _hittest_inside = (lambda z, pt: z.HitTestInsideZone(pt)) if hasattr(area, 'HitTestInsideZone') else (lambda z, pt: z.HitTest(pt))
                             for area_with_higher_priority in target_areas_on_same_layer:
-                                if area_with_higher_priority.HitTestInsideZone(point_to_test):
+                                if _hittest_inside(area_with_higher_priority, point_to_test):
                                     break  # Area of target net has higher priority on this layer
                             else:
                                 # Collides with another signal (e.g. on another layer)
@@ -451,110 +446,63 @@ STEP         = '-'
         wxPrint("Calculate placement areas")
 
         zones = [zone for zone in self.pcb.Zones() if zone.GetNetname() == self.netname]
-        if not zones:
-            wxPrint("No areas to fill")
-            return
         self.parent_area = zones[0]
+        # Create set of polygons where fill zones overlap on all layers
+        poly_set = None
+        for layer_id in self.pcb.GetEnabledLayers().CuStack():
+            poly_set_layer = SHAPE_POLY_SET()
+            for zone in zones:
+                if zone.IsOnLayer(layer_id):
+                    if poly_set is not None or not self.only_selected_area or zone.IsSelected():
+                        if _kicad_version_major() < 7:
+                            # below 7.0.0
+                            poly_set_layer.Append(zone.RawPolysList(layer_id))
+                        else:
+                            # 7.0.0 and above
+                            poly_set_layer.Append(zone.Outline())
 
-        # Snapshot of vias that existed BEFORE this run.
-        # Each zone resets to this baseline so that vias placed on OTHER zones
-        # do not block via placement on the current zone's perimeter.
-        existing_vias = [track for track in self.pcb.GetTracks() if (track.GetClass() == "PCB_VIA" and track.GetNetname() == self.netname)]
-        # Global list also grows so we avoid absolute overlaps between zones.
-        all_new_vias = []
+            if poly_set is None:
+                poly_set = poly_set_layer
+            else:
+                poly_set.BooleanIntersection(poly_set_layer)
+                poly_set.Simplify()
 
-        wxPrint("Generating via placement")
+            if poly_set.OutlineCount() == 0:
+                wxPrint("No areas to fill")
+                return
+
+        # Size the polygons so the vias fit inside
+        poly_set.Inflate(int(-(1 * self.clearance + 0.5 * self.size)), CORNER_STRATEGY_CHAMFER_ALL_CORNERS, FromMM(0.01))
+
+        wxPrint("Generating concentric via placement")
+        # Get all vias from the selected net
+        all_vias = [track for track in self.pcb.GetTracks() if (track.GetClass() == "PCB_VIA" and track.GetNetname() == self.netname)]
+
         off = 0
         via_placed = 0
-        processed_any = False
+        # Place vias along all outlines and holes
+        while poly_set.OutlineCount() > 0:
+            for i in range(0, poly_set.OutlineCount()):
+                outline = poly_set.Outline(i)
+                via_placed += self.AddViasAlongOutline(outline, outline, all_vias, off)
 
-        # Process each GND zone independently to avoid cross-layer polygon merge artefacts.
-        # Each zone's outline is shrunk slightly and vias are placed along its boundary.
-        for zone in zones:
-            if self.only_selected_area and not zone.IsSelected():
-                continue
+                if self.fill_type != self.FILL_TYPE_OUTLINE_NO_HOLES:
+                    for k in range(0, poly_set.HoleCount(i)):
+                        hole = poly_set.Hole(i, k)
+                        via_placed += self.AddViasAlongOutline(hole, outline, all_vias, off)
 
-            # Build the polygon for this zone.
-            # For KiCad >= 7, zone.Outline() may return an empty SHAPE_POLY_SET for inner-layer
-            # zones. We therefore try to build the polygon from points directly.
-            zone_poly = SHAPE_POLY_SET()
-            if Version() < "7":
-                for layer_id in zone.GetLayerSet().CuStack():
-                    z = zone.RawPolysList(layer_id)
-                    if z.OutlineCount() > 0:
-                        zone_poly.Append(z)
-                        break
+            # Size the polygons to place the next ring
+            if self.fill_type == self.FILL_TYPE_CONCENTRIC:
+                poly_set.Inflate(int(-max(self.step, self.size + self.clearance)), CORNER_STRATEGY_CHAMFER_ALL_CORNERS, FromMM(0.01))
+                off = 0.5 if off == 0 else 0
             else:
-                src = zone.Outline()
-                if src is not None and src.OutlineCount() > 0:
-                    # Manually copy each outline to avoid SWIG aliasing issues
-                    for oi in range(src.OutlineCount()):
-                        chain = src.Outline(oi)
-                        zone_poly.NewOutline()
-                        for pi in range(chain.PointCount()):
-                            pt = chain.CPoint(pi)
-                            zone_poly.Append(pt.x, pt.y)
-
-            if self.debug:
-                wxPrint("  Zone layer={} outline_pts={} outline_count={}".format(
-                    zone.GetLayerName(), zone_poly.TotalVertices() if hasattr(zone_poly, 'TotalVertices') else '?',
-                    zone_poly.OutlineCount()))
-
-            if zone_poly.OutlineCount() == 0:
-                if self.debug:
-                    wxPrint("  -> Skipped (empty outline)")
-                continue
-
-            processed_any = True
-
-            # Shrink slightly so vias fit inside the zone boundary.
-            # Use ALLOW_ACUTE_CORNERS (no chamfering) to preserve complex polygon topology.
-            inflate_amount = int(-(1 * self.clearance + 0.5 * self.size))
-            zone_poly.Inflate(inflate_amount, CORNER_STRATEGY_ALLOW_ACUTE_CORNERS, FromMM(0.01))
-
-            if self.debug:
-                wxPrint("  -> After inflate: outline_count={}".format(zone_poly.OutlineCount()))
-
-            if zone_poly.OutlineCount() == 0:
-                if self.debug:
-                    wxPrint("  -> Skipped (empty after inflate)")
-                continue  # Zone too small after shrink
-
-            # For this zone, only use pre-existing vias + already-placed-this-run vias
-            # for spacing checks – NOT vias placed on other zones' perimeters.
-            zone_vias = existing_vias + all_new_vias
-
-            # Place vias along outlines and holes of this zone
-            current_poly = zone_poly
-            while current_poly.OutlineCount() > 0:
-                for i in range(0, current_poly.OutlineCount()):
-                    outline = current_poly.Outline(i)
-                    n = self.AddViasAlongOutline(outline, outline, zone_vias, off)
-                    via_placed += n
-
-                    if self.fill_type != self.FILL_TYPE_OUTLINE_NO_HOLES:
-                        for k in range(0, current_poly.HoleCount(i)):
-                            hole = current_poly.Hole(i, k)
-                            n = self.AddViasAlongOutline(hole, outline, zone_vias, off)
-                            via_placed += n
-
-                # Concentric: shrink inward for next ring; Outline: single pass
-                if self.fill_type == self.FILL_TYPE_CONCENTRIC:
-                    current_poly.Inflate(int(-max(self.step, self.size + self.clearance)), CORNER_STRATEGY_CHAMFER_ALL_CORNERS, FromMM(0.01))
-                    off = 0.5 if off == 0 else 0
-                else:
-                    current_poly = SHAPE_POLY_SET()  # exit while loop
-
-            # Record vias placed for this zone to prevent global overlaps
-            all_new_vias = zone_vias[len(existing_vias):]
-
-        if not processed_any:
-            wxPrint("No areas to fill")
-            return
+                poly_set = SHAPE_POLY_SET()
 
         self.RefillBoardAreas()
+
         msg = "Done. {:d} vias placed. You have to refill all your pcb's areas/zones !!!".format(via_placed)
         wxPrint(msg)
+
         return via_placed
 
     """
@@ -613,7 +561,7 @@ STEP         = '-'
         lboard = self.pcb.ComputeBoundingBox(False)
         if self.debug:
             print("%s: Line %u" % (time.time(), currentframe().f_lineno))
-        origin = self.GetGridOrig(lboard)
+        origin = lboard.GetPosition()
         if self.debug:
             print("%s: Line %u" % (time.time(), currentframe().f_lineno))
 
@@ -623,19 +571,8 @@ STEP         = '-'
         if l_clearance < self.step:
             l_clearance = self.step
 
-        # Calculate grid extents relative to origin (support negative offsets)
-        board_min_x = lboard.GetPosition().x
-        board_min_y = lboard.GetPosition().y
-        board_max_x = board_min_x + lboard.GetWidth()
-        board_max_y = board_min_y + lboard.GetHeight()
-
-        x_min = int(floor((board_min_x - origin.x - l_clearance) / l_clearance))
-        x_max = int(ceil((board_max_x - origin.x + l_clearance) / l_clearance))
-        y_min = int(floor((board_min_y - origin.y - l_clearance) / l_clearance))
-        y_max = int(ceil((board_max_y - origin.y + l_clearance) / l_clearance))
-
-        x_limit = x_max - x_min + 1
-        y_limit = y_max - y_min + 1
+        x_limit = int((lboard.GetWidth() + l_clearance) / l_clearance) + 1
+        y_limit = int((lboard.GetHeight() + l_clearance) / l_clearance) + 1
         if self.debug:
             print(
                 "l_clearance : {}; step : {}; size: {}; clearance: {}; x/y_limit ({} {}),board size : {} {}".format(
@@ -664,7 +601,10 @@ STEP         = '-'
 
         # Get the board outline and size with
         board_edge = SHAPE_POLY_SET()
-        self.pcb.GetBoardPolygonOutlines(board_edge)
+        try:
+            self.pcb.GetBoardPolygonOutlines(board_edge)
+        except TypeError:
+            self.pcb.GetBoardPolygonOutlines(board_edge, True)  # KiCad 10: aInferOutlineIfNecessary required
         b_clearance = max(self.pcb.GetDesignSettings().m_CopperEdgeClearance, self.clearance) + self.size
         board_edge.Deflate(int(b_clearance), CORNER_STRATEGY_ROUND_ALL_CORNERS, FromMM(0.01))
 
@@ -694,8 +634,8 @@ STEP         = '-'
                     for y in xrange(len(rectangle[0])):
                         # No other "target area" found yet => go on with processing
                         if rectangle[x][y] == self.REASON_NO_SIGNAL:
-                            current_x = origin.x + ((x + (x_min)) * l_clearance)  # Center of the via
-                            current_y = origin.y + ((y + (y_min)) * l_clearance)
+                            current_x = origin.x + (x * l_clearance)  # Center of the via
+                            current_y = origin.y + (y * l_clearance)
 
                             test_result = True  # Start with true, if a check fails, it is set to false
 
@@ -703,7 +643,7 @@ STEP         = '-'
                             offset = 0  # Use an exact zone match
                             point_to_test = VECTOR2I(int(current_x), int(current_y))
                             hit_test_area = False
-                            if Version() < "7":
+                            if _kicad_version_major() < 7:
                                 # below 7.0.0
                                 hit_test_area = area.HitTestFilledArea(area.GetLayer(), VECTOR2I(point_to_test), int(offset))  # Collides with a filled area
                             else:
@@ -749,24 +689,24 @@ STEP         = '-'
             local_offset = max(pad.GetOwnClearance(UNDEFINED_LAYER, ""), self.clearance, max_target_area_clearance) + (self.size / 2)
             max_size = max(pad.GetSize().x, pad.GetSize().y)
 
-            start_x = int(floor(((pad.GetPosition().x - (max_size / 2.0 + local_offset)) - origin.x) / l_clearance)) - x_min
-            stop_x = int(ceil(((pad.GetPosition().x + (max_size / 2.0 + local_offset)) - origin.x) / l_clearance)) - x_min
+            start_x = int(floor(((pad.GetPosition().x - (max_size / 2.0 + local_offset)) - origin.x) / l_clearance))
+            stop_x = int(ceil(((pad.GetPosition().x + (max_size / 2.0 + local_offset)) - origin.x) / l_clearance))
 
-            start_y = int(floor(((pad.GetPosition().y - (max_size / 2.0 + local_offset)) - origin.y) / l_clearance)) - y_min
-            stop_y = int(ceil(((pad.GetPosition().y + (max_size / 2.0 + local_offset)) - origin.y) / l_clearance)) - y_min
+            start_y = int(floor(((pad.GetPosition().y - (max_size / 2.0 + local_offset)) - origin.y) / l_clearance))
+            stop_y = int(ceil(((pad.GetPosition().y + (max_size / 2.0 + local_offset)) - origin.y) / l_clearance))
 
             for x in range(start_x, stop_x + 1):
                 for y in range(start_y, stop_y + 1):
                     try:
                         if isinstance(rectangle[x][y], ViaObject):
                             size_rect = VECTOR2I(int(2 * local_offset), int(2 * local_offset))
-                            start_rect = VECTOR2I(int(origin.x + ((x + x_min) * l_clearance) - local_offset), int(origin.y + ((y + y_min) * l_clearance) - local_offset))
+                            start_rect = VECTOR2I(int(origin.x + (l_clearance * x) - local_offset), int(origin.y + (l_clearance * y) - local_offset))
                             if pad.HitTest(BOX2I(start_rect, size_rect), False):
                                 rectangle[x][y] = self.REASON_PAD
                             else:
                                 # Hit test doesn't handle large pads. This following should fix that.
                                 m = PCB_VIA(self.parent_area)
-                                m.SetPosition(VECTOR2I(int(origin.x + ((x + x_min) * l_clearance)), int(origin.y + ((y + y_min) * l_clearance))))
+                                m.SetPosition(VECTOR2I(int(origin.x + (l_clearance * x)), int(origin.y + (l_clearance * y))))
                                 m.SetNet(self.target_net)
                                 m.SetViaType(VIATYPE_THROUGH)
                                 m.SetDrill(int(self.drill))
@@ -811,17 +751,17 @@ STEP         = '-'
 
             clearance = max(track.GetOwnClearance(UNDEFINED_LAYER, ""), self.clearance, max_target_area_clearance) + (self.size / 2) + (track.GetWidth() / 2)
 
-            start_x = int(floor(((start_x - clearance) - origin.x) / l_clearance)) - x_min
-            stop_x = int(ceil(((stop_x + clearance) - origin.x) / l_clearance)) - x_min
+            start_x = int(floor(((start_x - clearance) - origin.x) / l_clearance))
+            stop_x = int(ceil(((stop_x + clearance) - origin.x) / l_clearance))
 
-            start_y = int(floor(((start_y - clearance) - origin.y) / l_clearance)) - y_min
-            stop_y = int(ceil(((stop_y + clearance) - origin.y) / l_clearance)) - y_min
+            start_y = int(floor(((start_y - clearance) - origin.y) / l_clearance))
+            stop_y = int(ceil(((stop_y + clearance) - origin.y) / l_clearance))
 
             for x in range(start_x, stop_x + 1):
                 for y in range(start_y, stop_y + 1):
                     try:
                         if isinstance(rectangle[x][y], ViaObject):
-                            start_rect = VECTOR2I(int(origin.x + ((x + x_min) * l_clearance) - clearance), int(origin.y + ((y + y_min) * l_clearance) - clearance))
+                            start_rect = VECTOR2I(int(origin.x + (l_clearance * x) - clearance), int(origin.y + (l_clearance * y) - clearance))
                             size_rect = VECTOR2I(int(2 * clearance), int(2 * clearance))
                             if track.HitTest(BOX2I(start_rect, size_rect), False):
                                 rectangle[x][y] = self.REASON_TRACK
@@ -840,18 +780,14 @@ STEP         = '-'
             inter = float(self.clearance + self.size) / 2
             bbox = draw.GetBoundingBox()
 
-            start_x = int(floor(((bbox.GetPosition().x - inter) - origin.x) / l_clearance)) - x_min
-            stop_x = int(ceil(((bbox.GetPosition().x + (bbox.GetSize().x + inter)) - origin.x) / l_clearance)) - x_min
+            start_x = int(floor(((bbox.GetPosition().x - inter) - origin.x) / l_clearance))
+            stop_x = int(ceil(((bbox.GetPosition().x + (bbox.GetSize().x + inter)) - origin.x) / l_clearance))
 
-            start_y = int(floor(((bbox.GetPosition().y - inter) - origin.y) / l_clearance)) - y_min
-            stop_y = int(ceil(((bbox.GetPosition().y + (bbox.GetSize().y + inter)) - origin.y) / l_clearance)) - y_min
+            start_y = int(floor(((bbox.GetPosition().y - inter) - origin.y) / l_clearance))
+            stop_y = int(ceil(((bbox.GetPosition().y + (bbox.GetSize().y + inter)) - origin.y) / l_clearance))
 
             for x in range(start_x, stop_x):
-                if x < 0 or x >= len(rectangle):
-                    continue
                 for y in range(start_y, stop_y):
-                    if y < 0 or y >= len(rectangle[0]):
-                        continue
                     rectangle[x][y] = self.REASON_DRAWING
 
         if self.debug:
