@@ -10,6 +10,18 @@ Please select the right branch according your KiCad version:
  - v8.0 for KiCad version 8.0.*
  - v9.0 for KiCad version 9.0.*
 
+# IPC API variant (KiCad 9.0.1+)
+
+The plugins in the repository root use the SWIG based python bindings,
+which are deprecated and planned to be removed in KiCad 11. The `IPC/`
+directory contains a port of ViaStitching and CircularZone to the new
+IPC API using the officially maintained
+[kicad-python](https://gitlab.com/kicad/code/kicad-python) bindings.
+It works with KiCad 9.0.1 and newer and is expected to keep working on
+future major versions. See [`IPC/README.md`](IPC/README.md) for
+installation. Install either the SWIG plugins or the IPC variant, not
+both (installing both registers the actions twice).
+
 # Know issues
 
 

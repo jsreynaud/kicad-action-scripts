@@ -1,0 +1,44 @@
+{
+    "$schema": "https://go.kicad.org/api/schemas/v1",
+    "identifier": "com.github.jsreynaud.kicad-action-scripts",
+    "name": "Via Stitching & Circular Zone",
+    "description": "Via stitching generator and circular zone/keep-out generator, ported to the KiCad IPC API",
+    "runtime": {
+        "type": "python",
+        "min_version": "3.9"
+    },
+    "actions": [
+        {
+            "identifier": "via-stitching",
+            "name": "Via Stitching Generator",
+            "description": "Fill copper zones of a selected net with stitching vias",
+            "show-button": true,
+            "scopes": [
+                "pcb"
+            ],
+            "entrypoint": "viastitching_action.py",
+            "icons-light": [
+                "stitching-vias.png"
+            ],
+            "icons-dark": [
+                "stitching-vias.png"
+            ]
+        },
+        {
+            "identifier": "circular-zone",
+            "name": "Circular Zone Generator",
+            "description": "Create a circular copper zone or keep-out area",
+            "show-button": true,
+            "scopes": [
+                "pcb"
+            ],
+            "entrypoint": "circularzone_action.py",
+            "icons-light": [
+                "round_keepout_area.png"
+            ],
+            "icons-dark": [
+                "round_keepout_area.png"
+            ]
+        }
+    ]
+}
