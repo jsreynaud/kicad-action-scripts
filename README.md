@@ -9,6 +9,11 @@ Please select the right branch according your KiCad version:
  - v7.0 for KiCad version 7.0.*
  - v8.0 for KiCad version 8.0.*
  - v9.0 for KiCad version 9.0.*
+ - master for KiCad version 9.0.* and 10.0.*
+
+Note: KiCad 10 still ships the (deprecated) SWIG based python
+bindings used by these plugins. They are planned to be removed in
+KiCad 11, which will require a rewrite to the new IPC API.
 
 # Know issues
 
