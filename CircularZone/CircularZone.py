@@ -28,7 +28,11 @@ class CircularZone(pcbnew.ActionPlugin):
         zone.SetOutline(sp)
         zone.SetLayer(pcbnew.F_Cu)
         zone.SetIsRuleArea(keepout)
-        zone.SetDoNotAllowCopperPour(keepout)
+        # Renamed to SetDoNotAllowZoneFills in KiCad 10
+        if hasattr(zone, "SetDoNotAllowCopperPour"):
+            zone.SetDoNotAllowCopperPour(keepout)
+        else:
+            zone.SetDoNotAllowZoneFills(keepout)
         zone.SetDoNotAllowFootprints(keepout)
         zone.SetDoNotAllowPads(keepout)
         zone.SetDoNotAllowTracks(keepout)

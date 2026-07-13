@@ -23,6 +23,7 @@
 from __future__ import print_function
 from pcbnew import *
 from builtins import abs
+import re
 import sys
 import tempfile
 import shutil
@@ -36,6 +37,40 @@ import time
 
 def wxPrint(msg):
     wx.LogMessage(msg)
+
+
+def GetKiCadMajorVersion():
+    # Version() returns a string, so comparisons like Version() < "7" break
+    # with KiCad 10 ("10..." < "7" is lexicographically true). Compare the
+    # major version numerically instead.
+    for name in ("GetMajorMinorVersion", "Version"):
+        func = globals().get(name)
+        if func is None:
+            continue
+        try:
+            match = re.search(r"\d+", func())
+            if match:
+                return int(match.group(0))
+        except Exception:
+            continue
+    return 0
+
+
+KICAD_VERSION_MAJOR = GetKiCadMajorVersion()
+
+
+def HitTestInsideZoneCompat(area, point):
+    # ZONE.HitTestInsideZone() was removed in KiCad 10; testing the zone
+    # outline is the equivalent operation.
+    if hasattr(area, "HitTestInsideZone"):
+        try:
+            return area.HitTestInsideZone(point)
+        except Exception:
+            pass
+    try:
+        return area.Outline().Collide(point)
+    except Exception:
+        return False
 
 
 #
@@ -297,7 +332,7 @@ STEP         = '-'
         for i in range(self.pcb.GetAreaCount()):
             area = self.pcb.GetArea(i)
             # No more making a real refill since it's crashing KiCad
-            if Version() < "7":
+            if KICAD_VERSION_MAJOR < 7:
                 None
             else:
                 area.SetNeedRefill(True)
@@ -312,7 +347,8 @@ STEP         = '-'
         # Enum all area
         for area in all_areas:
             area_layer = area.GetLayer()
-            area_clearance = area.GetLocalClearance()
+            # GetLocalClearance() may return None (std::optional) on newer KiCad versions
+            area_clearance = area.GetLocalClearance() or 0
             area_priority = area.GetAssignedPriority()
             is_rules_area = area.GetIsRuleArea()
             is_rule_exclude_via_area = area.GetIsRuleArea() and area.GetDoNotAllowVias()
@@ -329,7 +365,7 @@ STEP         = '-'
                         point_to_test = VECTOR2I(int(via.PosX + dx), int(via.PosY + dy))
 
                         hit_test_area = False
-                        if Version() < "7":
+                        if KICAD_VERSION_MAJOR < 7:
                             # below 7.0.0
                             for layer_id in area.GetLayerSet().CuStack():
                                 hit_test_area = hit_test_area or area.HitTestFilledArea(layer_id, point_to_test)  # Collides with a filled area
@@ -341,12 +377,7 @@ STEP         = '-'
                                     if area.GetLayerSet().Contains(layer_id) and (layer_id != Edge_Cuts):
                                         hit_test_area = hit_test_area or area_outline.PointInside(point_to_test)
                         hit_test_edge = area.HitTestForEdge(point_to_test, 1)  # Collides with an edge/corner
-                        try:
-                            hit_test_zone = area.HitTestInsideZone(point_to_test)  # Is inside a zone (e.g. KeepOut/Rules)
-                        except:
-                            hit_test_zone = False
-                            # wxPrint('exception: missing HitTestInsideZone: To Be Fixed (not available in kicad 7.0)')
-                            # hit_test_zone   = area.HitTest(point_to_test)
+                        hit_test_zone = HitTestInsideZoneCompat(area, point_to_test)  # Is inside a zone (e.g. KeepOut/Rules)
 
                         # Is inside a zone (e.g. KeepOut/Rules with via exlusion) kicad
                         if is_rule_exclude_via_area and (hit_test_area or hit_test_edge or hit_test_zone):
@@ -359,11 +390,12 @@ STEP         = '-'
                         elif (not self.via_through_areas) and hit_test_zone and not is_rules_area:
                             # Check if the zone is higher priority than other zones of the target net in the same point
                             # target_areas_on_same_layer = filter(lambda x: ((x.GetPriority() > area_priority) and (x.GetLayer() == area_layer) and (x.GetNetname().upper() == self.netname)), all_areas)
+                            # ZONE.GetPriority() no longer exists in KiCad 10, use GetAssignedPriority()
                             target_areas_on_same_layer = filter(
-                                lambda x: ((x.GetPriority() > area_priority) and (x.GetLayer() == area_layer) and (x.GetNetname() == self.netname)), all_areas
+                                lambda x: ((x.GetAssignedPriority() > area_priority) and (x.GetLayer() == area_layer) and (x.GetNetname() == self.netname)), all_areas
                             )
                             for area_with_higher_priority in target_areas_on_same_layer:
-                                if area_with_higher_priority.HitTestInsideZone(point_to_test):
+                                if HitTestInsideZoneCompat(area_with_higher_priority, point_to_test):
                                     break  # Area of target net has higher priority on this layer
                             else:
                                 # Collides with another signal (e.g. on another layer)
@@ -478,7 +510,7 @@ STEP         = '-'
             # For KiCad >= 7, zone.Outline() may return an empty SHAPE_POLY_SET for inner-layer
             # zones. We therefore try to build the polygon from points directly.
             zone_poly = SHAPE_POLY_SET()
-            if Version() < "7":
+            if KICAD_VERSION_MAJOR < 7:
                 for layer_id in zone.GetLayerSet().CuStack():
                     z = zone.RawPolysList(layer_id)
                     if z.OutlineCount() > 0:
@@ -664,7 +696,11 @@ STEP         = '-'
 
         # Get the board outline and size with
         board_edge = SHAPE_POLY_SET()
-        self.pcb.GetBoardPolygonOutlines(board_edge)
+        try:
+            self.pcb.GetBoardPolygonOutlines(board_edge)
+        except TypeError:
+            # KiCad 10 added a required aInferOutlineIfNecessary argument
+            self.pcb.GetBoardPolygonOutlines(board_edge, True)
         b_clearance = max(self.pcb.GetDesignSettings().m_CopperEdgeClearance, self.clearance) + self.size
         board_edge.Deflate(int(b_clearance), CORNER_STRATEGY_ROUND_ALL_CORNERS, FromMM(0.01))
 
@@ -679,7 +715,8 @@ STEP         = '-'
             if self.parent_area is None:
                 self.parent_area = area
             is_selected_area = area.IsSelected()
-            area_clearance = area.GetLocalClearance()
+            # GetLocalClearance() may return None (std::optional) on newer KiCad versions
+            area_clearance = area.GetLocalClearance() or 0
             if max_target_area_clearance < area_clearance:
                 max_target_area_clearance = area_clearance
 
@@ -703,7 +740,7 @@ STEP         = '-'
                             offset = 0  # Use an exact zone match
                             point_to_test = VECTOR2I(int(current_x), int(current_y))
                             hit_test_area = False
-                            if Version() < "7":
+                            if KICAD_VERSION_MAJOR < 7:
                                 # below 7.0.0
                                 hit_test_area = area.HitTestFilledArea(area.GetLayer(), VECTOR2I(point_to_test), int(offset))  # Collides with a filled area
                             else:
