@@ -1,0 +1,3 @@
+kicad-python>=0.4.0
+wxPython~=4.2
+shapely>=2.0
