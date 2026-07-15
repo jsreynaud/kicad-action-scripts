@@ -658,6 +658,11 @@ STEP         = '-'
             all_drawings = filter(lambda x: x.GetClass() == "PTEXT" and self.pcb.GetLayerID(x.GetLayerName()) in (F_Cu, B_Cu), self.pcb.Drawings())
             # wxPrint("exception on missing BOARD.DrawingsList")
         all_areas = [self.pcb.GetArea(i) for i in xrange(self.pcb.GetAreaCount())]
+        # Keep-out (rule) areas defined inside a footprint are not returned by
+        # BOARD.GetArea(); add them so vias are not placed inside footprint
+        # keep-out zones. They have no netname, so they never become target areas.
+        for footprint in self.pcb.GetFootprints():
+            all_areas += [zone for zone in footprint.Zones() if zone.GetIsRuleArea()]
         # target_areas    = filter(lambda x: (x.GetNetname().upper() == self.netname), all_areas)         # KeepOuts are filtered because they have no name
         # KeepOuts are filtered because they have no name
         target_areas = filter(lambda x: (x.GetNetname() == self.netname), all_areas)
